@@ -1,0 +1,82 @@
+{
+  "entities": {
+    "Machine": {
+      "title": "Machine",
+      "description": "A workout machine in the gym",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "category": { "type": "string", "description": "Category or array of categories" },
+        "description": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string", "maxLength": 2048000 },
+        "imageUrls": { "type": "array" },
+        "links": { "type": "array" },
+        "isCustom": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["name", "category", "description", "imageUrl", "isCustom", "createdAt", "createdBy"]
+    },
+    "UserProfileDoc": {
+      "title": "UserProfileDoc",
+      "description": "User profile, routine and nutrition plans",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "profile": { "type": "object" },
+        "routine": { "type": "object" },
+        "nutrition": { "type": "object" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "profile", "routine", "nutrition", "updatedAt"]
+    },
+    "WorkoutLog": {
+      "title": "WorkoutLog",
+      "description": "A user workout session log",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "maxLength": 20 },
+        "durationSeconds": { "type": "number" },
+        "exercises": { "type": "array" },
+        "notes": { "type": "string", "maxLength": 2000 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["date", "userId", "createdAt"]
+    },
+    "BodyMetric": {
+      "title": "BodyMetric",
+      "description": "User body metric measurement entry",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "maxLength": 20 },
+        "weight": { "type": "number" },
+        "chest": { "type": "number" },
+        "waist": { "type": "number" },
+        "arms": { "type": "number" },
+        "legs": { "type": "number" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["date", "weight", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/machines/{machineId}": {
+      "schema": "Machine",
+      "description": "Shared catalog of gym machines."
+    },
+    "/userProfiles/{userId}": {
+      "schema": "UserProfileDoc",
+      "description": "User profile, workout routine, and nutrition plan."
+    },
+    "/workoutLogs/{logId}": {
+      "schema": "WorkoutLog",
+      "description": "Individual workout logs."
+    },
+    "/bodyMetrics/{metricId}": {
+      "schema": "BodyMetric",
+      "description": "Individual body weight and measurement logs."
+    }
+  }
+}

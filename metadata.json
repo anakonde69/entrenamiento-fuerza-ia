@@ -1,0 +1,8 @@
+{
+  "name": "Entrenamiento de Fuerza IA",
+  "description": "Aplicación de entrenamiento de fuerza inteligente con rutinas personalizadas por IA, registro de series, gráficos de progreso, temporizador de descanso y consejos nutricionales.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
