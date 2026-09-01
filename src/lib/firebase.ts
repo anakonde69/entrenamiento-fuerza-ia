@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut as firebaseSignOut } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -10,11 +10,22 @@ export const auth = getAuth(app);
 export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
   try {
-    await signInWithPopup(auth, provider);
+    // Usamos redirección en lugar de popup: más fiable en producción (Vercel),
+    // no depende de que el navegador permita ventanas emergentes.
+    await signInWithRedirect(auth, provider);
   } catch (error) {
     console.error("Error signing in with Google", error);
   }
 };
+
+// Procesa el resultado de la redirección al volver de Google.
+export async function handleRedirectResult() {
+  try {
+    await getRedirectResult(auth);
+  } catch (error) {
+    console.error("Error getting redirect result", error);
+  }
+}
 
 export const signOut = async () => {
   try {

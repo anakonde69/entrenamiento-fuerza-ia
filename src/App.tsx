@@ -13,7 +13,7 @@ import NutritionAdvisor from "./components/NutritionAdvisor";
 import HealthSync from "./components/HealthSync";
 import FreeWorkout from "./components/FreeWorkout";
 import ConfirmModal from "./components/ConfirmModal";
-import { auth, db, signInWithGoogle, signOut, handleFirestoreError, OperationType, cleanForFirestore } from "./lib/firebase";
+import { auth, db, signInWithGoogle, signOut, handleRedirectResult, handleFirestoreError, OperationType, cleanForFirestore } from "./lib/firebase";
 import { safeSetItem, safeGetItem } from "./lib/storage";
 import { User } from "firebase/auth";
 import { doc, setDoc, deleteDoc, onSnapshot, collection, query, where } from "firebase/firestore";
@@ -69,6 +69,8 @@ export default function App() {
 
   // Handle Firebase Auth
   useEffect(() => {
+    // Procesa el resultado de la redirección de Google (al volver de la pestaña).
+    handleRedirectResult();
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
