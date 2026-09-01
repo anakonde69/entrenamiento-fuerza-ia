@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut as firebaseSignOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -7,25 +7,23 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
-export const signInWithGoogle = async () => {
+// Devuelve null si el login fue bien, o un string con el mensaje de error.
+export const signInWithGoogle = async (): Promise<string | null> => {
   const provider = new GoogleAuthProvider();
   try {
-    // Usamos redirección en lugar de popup: más fiable en producción (Vercel),
-    // no depende de que el navegador permita ventanas emergentes.
-    await signInWithRedirect(auth, provider);
-  } catch (error) {
+    await signInWithPopup(auth, provider);
+    return null;
+  } catch (error: any) {
+    if (error?.code === "auth/popup-blocked") {
+      return "Tu navegador ha bloqueado la ventana emergente de Google. Permite las ventanas emergentes para este sitio e inténtalo de nuevo.";
+    }
+    if (error?.code === "auth/popup-closed-by-user") {
+      return null; // El usuario cerró la ventana, no es un error
+    }
     console.error("Error signing in with Google", error);
+    return "Error al iniciar sesión con Google. Inténtalo de nuevo.";
   }
 };
-
-// Procesa el resultado de la redirección al volver de Google.
-export async function handleRedirectResult() {
-  try {
-    await getRedirectResult(auth);
-  } catch (error) {
-    console.error("Error getting redirect result", error);
-  }
-}
 
 export const signOut = async () => {
   try {
