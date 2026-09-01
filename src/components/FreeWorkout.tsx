@@ -245,7 +245,12 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
 
     // Listen to machines
     const machinesQuery = query(collection(db, "machines"));
-    let hasSeeded = false;
+    // Persistent flag so machines are only auto-seeded ONCE ever. The previous
+    // local `hasSeeded` variable reset on every component remount, which caused
+    // the app to re-seed all machines (including deleted ones like "Remo Indoor")
+    // whenever the collection became empty and the component remounted.
+    const SEED_FLAG_KEY = "machines_seeded_v1";
+    const hasSeeded = safeGetItem(SEED_FLAG_KEY) === "true";
     const unsubscribeMachines = onSnapshot(machinesQuery, (snapshot) => {
       const fetchedMachines: MachineExercise[] = [];
       snapshot.forEach(docSnap => {
@@ -267,9 +272,11 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
         });
       });
       
-      // Auto-seed initial machines if empty (only first time overall)
+      // Auto-seed initial machines only if the collection is empty AND we have
+      // never seeded before. Once seeded, never re-seed (so user deletions stick).
       if (fetchedMachines.length === 0 && !hasSeeded) {
-        hasSeeded = true;
+        // Mark as seeded immediately to prevent duplicate seeding on rapid snapshots
+        safeSetItem(SEED_FLAG_KEY, "true");
         const seedMachines = async () => {
           try {
             const batch = writeBatch(db);
@@ -289,11 +296,13 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
             await batch.commit();
           } catch (e) {
             console.error("Error seeding machines:", e);
+            // Allow retry on next mount if seeding failed
+            safeSetItem(SEED_FLAG_KEY, "false");
           }
         };
         seedMachines();
       } else if (fetchedMachines.length > 0) {
-        hasSeeded = true;
+        safeSetItem(SEED_FLAG_KEY, "true");
         setMachines(fetchedMachines);
         safeSetItem("cached_machines", JSON.stringify(fetchedMachines));
       }

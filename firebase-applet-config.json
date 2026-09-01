@@ -1,12 +1,12 @@
 {
-  "projectId": "gen-lang-client-0702654291",
-  "appId": "1:766421024538:web:8592746aac71658f7976a3",
-  "apiKey": "AIzaSyCoJFKIs_g1FtKYkT0v9XpSss3wcKFwtHQ",
-  "authDomain": "gen-lang-client-0702654291.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-entrenamientodef-d5274f3a-d92e-4fdb-8996-ca2e5d6009bc",
-  "storageBucket": "gen-lang-client-0702654291.firebasestorage.app",
-  "messagingSenderId": "766421024538",
+  "projectId": "entrenamiento-fuerza",
+  "appId": "1:411298962563:web:bcdaa3afb5ec09d82fcfb6",
+  "apiKey": "AIzaSyBzGGDzmrt8P7bwg1IvSb1AA9HmbfKqpLo",
+  "authDomain": "entrenamiento-fuerza.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "entrenamiento-fuerza.firebasestorage.app",
+  "messagingSenderId": "411298962563",
   "measurementId": "",
-  "oAuthClientId": "766421024538-me3iplkebi67noau42vkgfusdgb49a3d.apps.googleusercontent.com",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

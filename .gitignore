@@ -2,7 +2,9 @@ node_modules/
 build/
 dist/
 coverage/
+.vercel/
 .DS_Store
 *.log
 .env*
 !.env.example
+.abacus.donotdelete

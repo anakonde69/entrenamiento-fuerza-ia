@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Entrenamiento de Fuerza IA
 
-# Run and deploy your AI Studio app
+Aplicación full-stack (React + Vite + Express + TypeScript) para generar rutinas, recomendaciones nutricionales y ejercicios alternativos.
 
-This contains everything you need to run your app locally.
+## Desarrollo local
 
-View your app in AI Studio: https://ai.studio/apps/d5274f3a-d92e-4fdb-8996-ca2e5d6009bc
+1. Instalar dependencias:
+   ```bash
+   npm install
+   ```
+2. (Opcional) Crear `.env.local` con:
+   ```env
+   GEMINI_API_KEY=tu_clave
+   ```
+   Si no se define, la app usa fallback local para los endpoints de IA.
+3. Iniciar en modo desarrollo:
+   ```bash
+   npm run dev
+   ```
 
-## Run Locally
+## Despliegue en Vercel
 
-**Prerequisites:**  Node.js
+Este proyecto está preparado para Vercel con:
+- `api/index.ts` como función serverless de Express.
+- `vercel.json` para ejecutar `vite build` y enrutar tanto `/api/*` como frontend a la función.
+- `dist/` servido estáticamente desde Express en producción.
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Variable de entorno opcional en Vercel:
+- `GEMINI_API_KEY` (si no se configura, se mantiene el fallback local).

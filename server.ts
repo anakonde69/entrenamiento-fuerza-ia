@@ -142,8 +142,10 @@ async function callGeminiWithRetry<T>(
   throw lastError;
 }
 
-const app = express();
+export const app = express();
 const PORT = 3000;
+
+let staticAssetsConfigured = false;
 
 app.use(express.json());
 
@@ -471,6 +473,18 @@ app.post("/api/alternative-exercise", async (req, res) => {
   }
 });
 
+export function setupStaticAssets() {
+  if (staticAssetsConfigured) return;
+
+  const distPath = path.join(process.cwd(), "dist");
+  app.use(express.static(distPath));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+
+  staticAssetsConfigured = true;
+}
+
 // Setup development server or serve build directory
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
@@ -480,11 +494,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    setupStaticAssets();
   }
 
   app.listen(PORT, "0.0.0.0", () => {
@@ -492,4 +502,11 @@ async function startServer() {
   });
 }
 
-startServer();
+const executedFilePath = process.argv[1] || "";
+const isDirectExecution = /(?:^|\/)server\.(?:ts|js|cjs|mjs)$/.test(executedFilePath);
+
+if (isDirectExecution) {
+  startServer();
+}
+
+export default app;
