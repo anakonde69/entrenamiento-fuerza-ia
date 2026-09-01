@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
@@ -476,10 +477,31 @@ app.post("/api/alternative-exercise", async (req, res) => {
 export function setupStaticAssets() {
   if (staticAssetsConfigured) return;
 
-  const distPath = path.join(process.cwd(), "dist");
+  // Resolve the dist folder robustly across Vercel serverless environments,
+  // where process.cwd() may not point to the project root.
+  const candidates = [
+    path.join(process.cwd(), "dist"),
+    path.join(__dirname, "..", "dist"),
+    path.join(__dirname, "dist"),
+  ];
+  const distPath =
+    candidates.find((p) => fs.existsSync(path.join(p, "index.html"))) ||
+    candidates[0];
+
   app.use(express.static(distPath));
-  app.get("*", (req, res) => {
+
+  // Serve the SPA for any non-API GET request.
+  app.get(/^\/(?!api\/).*/, (req, res) => {
     res.sendFile(path.join(distPath, "index.html"));
+  });
+
+  // Error handler: avoid 500 when a static file is missing.
+  app.use((err: any, _req: any, res: any, next: any) => {
+    if (err) {
+      res.status(404).json({ error: "Not found" });
+    } else {
+      next();
+    }
   });
 
   staticAssetsConfigured = true;
