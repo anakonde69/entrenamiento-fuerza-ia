@@ -1,6 +1,5 @@
-import app, { setupStaticAssets } from "../server";
+import app from "../server";
 
-// En Vercel (serverless) servimos frontend compilado + rutas /api/* desde Express.
-setupStaticAssets();
-
+// En Vercel (serverless) el frontend compilado (dist/) lo sirve Vercel de forma
+// nativa (outputDirectory). Esta función solo maneja las rutas /api/*.
 export default app;
