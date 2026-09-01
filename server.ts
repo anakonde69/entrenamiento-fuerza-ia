@@ -1,7 +1,9 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
+// NO importamos vite al nivel superior: es una devDependency no disponible en
+// el entorno serverless de Vercel (runtime). Se importa de forma dinámica solo
+// cuando realmente se necesita (modo desarrollo).
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
@@ -510,6 +512,8 @@ export function setupStaticAssets() {
 // Setup development server or serve build directory
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    // Import dinámico: vite solo está disponible en dev (devDependency)
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
