@@ -1,5 +1,15 @@
-import { useState, FormEvent } from "react";
-import { Scale, Heart, Plus, Calendar, Trash2, TrendingDown } from "lucide-react";
+import { useState, FormEvent, useMemo } from "react";
+import { Scale, Plus, Calendar, Trash2, TrendingDown, LineChart as LineChartIcon } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import { BodyMetricLog } from "../types";
 
 interface BodyMetricsTrackerProps {
@@ -38,10 +48,42 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
   };
 
   // Quick stats calculations
-  const sortedMetrics = [...metrics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const sortedMetrics = useMemo(
+    () => [...metrics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [metrics]
+  );
   const initialWeight = sortedMetrics.length > 0 ? sortedMetrics[0].weight : 0;
   const currentWeight = sortedMetrics.length > 0 ? sortedMetrics[sortedMetrics.length - 1].weight : 0;
   const weightChange = currentWeight && initialWeight ? (currentWeight - initialWeight).toFixed(1) : "0.0";
+
+  const formatDateLabel = (value: string) => {
+    const [year, month, day] = value.split("-");
+    if (!year || !month || !day) return value;
+    return `${day}/${month}`;
+  };
+
+  const weightChartData = useMemo(
+    () =>
+      sortedMetrics.map((metric) => ({
+        date: metric.date,
+        peso: metric.weight,
+      })),
+    [sortedMetrics]
+  );
+
+  const measurementsChartData = useMemo(
+    () =>
+      sortedMetrics
+        .filter((metric) => metric.chest || metric.waist || metric.arms || metric.legs)
+        .map((metric) => ({
+          date: metric.date,
+          pecho: metric.chest ?? null,
+          cintura: metric.waist ?? null,
+          brazos: metric.arms ?? null,
+          piernas: metric.legs ?? null,
+        })),
+    [sortedMetrics]
+  );
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6">
@@ -195,7 +237,7 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
           </form>
         </div>
 
-        {/* List Column */}
+        {/* List + Charts Column */}
         <div className="md:col-span-7 space-y-4">
           <div className="bg-zinc-950 rounded-2xl border border-zinc-900 p-5 shadow-xl">
             <h3 className="text-base font-black text-white mb-4 uppercase">
@@ -244,6 +286,103 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-zinc-950 rounded-2xl border border-zinc-900 p-5 shadow-xl space-y-5">
+            <div>
+              <h3 className="text-base font-black text-white mb-1 uppercase flex items-center gap-2">
+                <LineChartIcon className="w-4 h-4 text-red-500" />
+                Evolución
+              </h3>
+              <p className="text-xs text-zinc-500">
+                Visualiza cómo cambian tu peso y tus perímetros a lo largo del tiempo.
+              </p>
+            </div>
+
+            {metrics.length === 0 ? (
+              <div className="h-56 flex items-center justify-center text-zinc-500 border border-dashed border-zinc-900 rounded-xl">
+                <p className="text-sm">Necesitas registros para mostrar las gráficas de evolución.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest font-mono mb-2">
+                    Evolución de peso (kg)
+                  </h4>
+                  <div className="h-60 w-full rounded-xl border border-zinc-900 bg-black/40 p-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={weightChartData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
+                        <XAxis
+                          dataKey="date"
+                          tickLine={false}
+                          minTickGap={20}
+                          tickFormatter={formatDateLabel}
+                          style={{ fontSize: "10px", fill: "#71717a" }}
+                        />
+                        <YAxis tickLine={false} unit="kg" style={{ fontSize: "10px", fill: "#71717a" }} />
+                        <Tooltip
+                          labelFormatter={(label) => `Fecha: ${label}`}
+                          formatter={(value) => [`${value} kg`, "Peso"]}
+                          contentStyle={{ borderRadius: "12px", border: "1px solid #27272a", backgroundColor: "#09090b", color: "#fff" }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="peso"
+                          name="Peso"
+                          stroke="#dc2626"
+                          strokeWidth={2.5}
+                          dot={{ r: 3, fill: "#dc2626" }}
+                          activeDot={{ r: 5 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest font-mono mb-2">
+                    Evolución de medidas corporales (cm)
+                  </h4>
+                  {measurementsChartData.length === 0 ? (
+                    <div className="h-56 flex items-center justify-center text-zinc-500 border border-dashed border-zinc-900 rounded-xl">
+                      <p className="text-sm px-4 text-center">
+                        Aún no hay perímetros registrados. Añade pecho, cintura, brazos o piernas para ver esta gráfica.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="h-72 w-full rounded-xl border border-zinc-900 bg-black/40 p-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={measurementsChartData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
+                          <XAxis
+                            dataKey="date"
+                            tickLine={false}
+                            minTickGap={20}
+                            tickFormatter={formatDateLabel}
+                            style={{ fontSize: "10px", fill: "#71717a" }}
+                          />
+                          <YAxis tickLine={false} unit="cm" style={{ fontSize: "10px", fill: "#71717a" }} />
+                          <Tooltip
+                            labelFormatter={(label) => `Fecha: ${label}`}
+                            formatter={(value, name) => {
+                              if (value === null || value === undefined) return ["Sin dato", name];
+                              return [`${value} cm`, name];
+                            }}
+                            contentStyle={{ borderRadius: "12px", border: "1px solid #27272a", backgroundColor: "#09090b", color: "#fff" }}
+                          />
+                          <Legend verticalAlign="top" height={28} iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
+                          <Line type="monotone" dataKey="pecho" name="Pecho" stroke="#ef4444" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                          <Line type="monotone" dataKey="cintura" name="Cintura" stroke="#dc2626" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                          <Line type="monotone" dataKey="brazos" name="Brazos" stroke="#f87171" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                          <Line type="monotone" dataKey="piernas" name="Piernas" stroke="#b91c1c" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
