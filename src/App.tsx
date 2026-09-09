@@ -36,7 +36,7 @@ function LoginScreen() {
       <div className="relative z-10 w-full max-w-sm">
         <div className="text-center mb-10">
           <h1 className="flex justify-center mb-4">
-            <img src={customLogo} alt="Panatta Sport" className="h-24 object-contain drop-shadow-xl" />
+            <img src={customLogo} alt="XOPATS" className="w-full max-w-xs object-contain drop-shadow-xl" />
           </h1>
           <p className="text-zinc-400 text-sm">Inicia sesión para registrar tus entrenamientos por separado.</p>
         </div>
