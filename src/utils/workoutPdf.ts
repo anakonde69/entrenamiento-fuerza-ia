@@ -17,61 +17,61 @@ function detectImageFormat(dataUrl: string): string {
   return "PNG";
 }
 
+/** Tipo de retorno unificado para ambos casos (data URL o HTMLImageElement) */
+type LoadedImage = {
+  imageData: string | HTMLImageElement;  // string = data URL, HTMLImageElement = imagen cargada
+  width: number;
+  height: number;
+  format: string;
+};
+
 /**
- * Carga una imagen y devuelve su data URL y dimensiones para incrustarla en jsPDF.
- * - Si la fuente ya ES un data URL (fotos del usuario guardadas en Firestore),
- *   lo usa directamente sin pasar por canvas (evita tainting de canvas).
- * - Si es una URL http(s), la descarga con fetch y la convierte a data URL.
+ * Carga una imagen para incrustarla en jsPDF.
+ * - Data URL (fotos del usuario en Firestore): usa el string directamente, sin canvas.
+ * - URL http(s): carga como HTMLImageElement con crossOrigin="anonymous".
+ *   jsPDF acepta HTMLImageElement nativamente y lo dibuja internamente en canvas.
+ *   Como el servidor envía Access-Control-Allow-Origin: * (p.ej. Unsplash),
+ *   el canvas NO queda "tainted" y la operación es segura.
  */
-async function loadImageAsDataUrl(
-  src: string
-): Promise<{ dataUrl: string; width: number; height: number; format: string } | null> {
+async function loadImageForPdf(src: string): Promise<LoadedImage | null> {
   if (!src || typeof src !== "string" || src.trim() === "") return null;
 
-  // ── Caso 1: ya es un data URL ───────────────────────────────────────────────
+  // ── Caso 1: ya es un data URL ────────────────────────────────────────────────
   if (src.startsWith("data:")) {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () =>
         resolve({
-          dataUrl: src,
+          imageData: src,
           width: img.naturalWidth || 400,
           height: img.naturalHeight || 300,
           format: detectImageFormat(src),
         });
-      img.onerror = () => resolve(null);
+      img.onerror = () => {
+        console.warn("[PDF] Falló la carga de data URL, longitud:", src.length);
+        resolve(null);
+      };
       img.src = src;
     });
   }
 
-  // ── Caso 2: URL http(s) — fetch para evitar CORS con canvas ─────────────────
-  try {
-    const response = await fetch(src);
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        if (!dataUrl) { resolve(null); return; }
-        const img = new Image();
-        img.onload = () =>
-          resolve({
-            dataUrl,
-            width: img.naturalWidth || 400,
-            height: img.naturalHeight || 300,
-            format: detectImageFormat(dataUrl),
-          });
-        img.onerror = () =>
-          resolve({ dataUrl, width: 400, height: 300, format: detectImageFormat(dataUrl) });
-        img.src = dataUrl;
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
+  // ── Caso 2: URL http(s) — HTMLImageElement con crossOrigin ──────────────────
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () =>
+      resolve({
+        imageData: img,
+        width: img.naturalWidth || 400,
+        height: img.naturalHeight || 300,
+        format: "JPEG",
+      });
+    img.onerror = () => {
+      console.warn("[PDF] Falló la carga de URL http:", src.substring(0, 80));
+      resolve(null);
+    };
+    img.src = src;
+  });
 }
 
 function formatTimeSecs(totalSeconds: number): string {
@@ -171,13 +171,14 @@ export async function generateDayWorkoutPdf(
       const ex = exercises[e];
 
       // Foto de la máquina
-      // 1) Intentar con los datos del propio log (pueden ser URLs http externas)
-      // 2) Si no hay o son vacíos (data URLs se borran al guardar), buscar en el catálogo de máquinas
+      // 1) Buscar imagen en el log (para URLs http externas que no se sanitizan)
+      // 2) Si no hay, buscar en el catálogo de máquinas por machineId
+      //    (las fotos subidas por el usuario se guardan en Firestore machines, no en el log)
       const logImgSrc =
         (ex.imageUrls && ex.imageUrls.length > 0 ? ex.imageUrls[0] : "") || ex.imageUrl || "";
 
       let machineImgSrc = "";
-      if (!logImgSrc && ex.machineId) {
+      if (ex.machineId) {
         const machine = machines.find((m) => m.id === ex.machineId);
         if (machine) {
           machineImgSrc =
@@ -187,10 +188,16 @@ export async function generateDayWorkoutPdf(
         }
       }
 
-      const imgSrc = logImgSrc || machineImgSrc;
-      let imgData: { dataUrl: string; width: number; height: number; format: string } | null = null;
+      // Preferir la del catálogo de máquinas (más actualizada) sobre la del log
+      const imgSrc = machineImgSrc || logImgSrc;
+
+      // Diagnóstico en consola del navegador (abrir DevTools → Console para ver)
+      console.log(`[PDF] Ejercicio ${e + 1}: "${ex.name}" | machineId="${ex.machineId}" | machines.length=${machines.length} | machineImgSrc="${machineImgSrc.substring(0, 60)}" | logImgSrc="${logImgSrc.substring(0, 60)}" | imgSrc="${imgSrc.substring(0, 60)}"`);
+
+      let imgData: LoadedImage | null = null;
       if (imgSrc) {
-        imgData = await loadImageAsDataUrl(imgSrc);
+        imgData = await loadImageForPdf(imgSrc);
+        console.log(`[PDF]   → imagen cargada: ${imgData ? "SÍ" : "NO"}`);
       }
 
       const imgBoxW = 32;
@@ -224,9 +231,11 @@ export async function generateDayWorkoutPdf(
             drawH = imgBoxH;
             drawW = imgBoxH * ratio;
           }
-          pdf.addImage(imgData.dataUrl, imgData.format, marginX, y, drawW, drawH);
-        } catch {
-          /* si falla la imagen, continuar sin ella */
+          // imageData puede ser un string (data URL) o un HTMLImageElement
+          // jsPDF acepta ambos en addImage()
+          pdf.addImage(imgData.imageData as any, imgData.format, marginX, y, drawW, drawH);
+        } catch (err) {
+          console.warn("[PDF] pdf.addImage falló:", err);
         }
       }
 
