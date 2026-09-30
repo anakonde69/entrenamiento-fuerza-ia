@@ -566,7 +566,9 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     if (generatingPdf) return;
     setGeneratingPdf(true);
     try {
-      await generateDayWorkoutPdf(dateLabel, logs);
+      // Se pasan las máquinas para poder recuperar las fotos por machineId,
+      // ya que sanitizeUrlForLog elimina data URLs del log para no superar el límite de Firestore.
+      await generateDayWorkoutPdf(dateLabel, logs, machines);
     } catch (err) {
       console.error("Error generando PDF", err);
       alert("Hubo un problema al generar el PDF. Inténtalo de nuevo.");

@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { FreeWorkoutLog } from "../types";
+import { FreeWorkoutLog, MachineExercise } from "../types";
 
 // Colores del tema (rojo/negro)
 const RED: [number, number, number] = [220, 38, 38];
@@ -87,10 +87,15 @@ function formatTimeSecs(totalSeconds: number): string {
  * Genera un PDF con el resumen de los entrenamientos de un día:
  * fecha, sesiones, y por cada ejercicio: foto de la máquina, series con
  * peso y repeticiones (o bloques de cardio). Todos los textos en español.
+ *
+ * @param dateLabel  Etiqueta legible de la fecha (p.ej. "lunes, 30 sept 2026")
+ * @param logs       Registros de entrenamiento del día
+ * @param machines   Lista completa de máquinas del usuario (para obtener imágenes por machineId)
  */
 export async function generateDayWorkoutPdf(
   dateLabel: string,
-  logs: FreeWorkoutLog[]
+  logs: FreeWorkoutLog[],
+  machines: MachineExercise[] = []
 ): Promise<void> {
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -166,9 +171,24 @@ export async function generateDayWorkoutPdf(
       const ex = exercises[e];
 
       // Foto de la máquina
-      const imgSrc =
+      // 1) Intentar con los datos del propio log (pueden ser URLs http externas)
+      // 2) Si no hay o son vacíos (data URLs se borran al guardar), buscar en el catálogo de máquinas
+      const logImgSrc =
         (ex.imageUrls && ex.imageUrls.length > 0 ? ex.imageUrls[0] : "") || ex.imageUrl || "";
-      let imgData: { dataUrl: string; width: number; height: number } | null = null;
+
+      let machineImgSrc = "";
+      if (!logImgSrc && ex.machineId) {
+        const machine = machines.find((m) => m.id === ex.machineId);
+        if (machine) {
+          machineImgSrc =
+            (machine.imageUrls && machine.imageUrls.length > 0 ? machine.imageUrls[0] : "") ||
+            machine.imageUrl ||
+            "";
+        }
+      }
+
+      const imgSrc = logImgSrc || machineImgSrc;
+      let imgData: { dataUrl: string; width: number; height: number; format: string } | null = null;
       if (imgSrc) {
         imgData = await loadImageAsDataUrl(imgSrc);
       }
