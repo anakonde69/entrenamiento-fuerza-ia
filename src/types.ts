@@ -94,6 +94,10 @@ export interface MachineExercise {
   category: string | string[]; // e.g., "Cardio", "Pecho", "Espalda", "Piernas", "Hombros", "Bíceps", "Tríceps", "Core", "Personalizados"
   isCustom?: boolean;
   isCardio?: boolean;
+  /** true → guardada en users/{uid}/machines (solo visible para su dueño) */
+  isPrivate?: boolean;
+  /** UID del usuario propietario (se rellena para máquinas privadas) */
+  ownerId?: string;
 }
 
 export interface FreeExerciseSet {

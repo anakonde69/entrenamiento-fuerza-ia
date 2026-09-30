@@ -194,6 +194,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
   const [newMachineCategory, setNewMachineCategory] = useState<string[]>(["Cardio"]);
   const [newMachineDesc, setNewMachineDesc] = useState<string>("");
   const [newMachineGallery, setNewMachineGallery] = useState<string[]>([]);
+  const [newMachineIsPrivate, setNewMachineIsPrivate] = useState<boolean>(false);
   const [zoomedGallery, setZoomedGallery] = useState<{urls: string[], index: number, title?: string} | null>(null);
   const [newMachineLinks, setNewMachineLinks] = useState<string[]>([]);
   const [newLinkInput, setNewLinkInput] = useState<string>("");
@@ -245,38 +246,49 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     if (!user) return;
 
     // Listen to machines
+    // ── Listeners de máquinas (compartidas + privadas del usuario) ────────────
+    // Las máquinas compartidas viven en la colección global "machines/".
+    // Las privadas viven en "users/{uid}/machines/" y solo las ve su dueño.
     const machinesQuery = query(collection(db, "machines"));
-    // Persistent flag so machines are only auto-seeded ONCE ever. The previous
-    // local `hasSeeded` variable reset on every component remount, which caused
-    // the app to re-seed all machines (including deleted ones like "Remo Indoor")
-    // whenever the collection became empty and the component remounted.
+    const privateMachinesQuery = query(collection(db, `users/${user.uid}/machines`));
+
     const SEED_FLAG_KEY = "machines_seeded_v1";
     const hasSeeded = safeGetItem(SEED_FLAG_KEY) === "true";
+
+    // Estado compartido entre los dos listeners para poder fusionarlos
+    let sharedMachines: MachineExercise[] = [];
+    let privateMachines: MachineExercise[] = [];
+
+    const mergeMachines = () => {
+      // Privadas primero para que aparezcan destacadas en el catálogo
+      const merged = [...privateMachines, ...sharedMachines];
+      setMachines(merged);
+      safeSetItem("cached_machines", JSON.stringify(merged));
+    };
+
+    const parseMachine = (docSnap: any, overrides?: Partial<MachineExercise>): MachineExercise => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        name: data.name,
+        category: data.category,
+        description: data.description,
+        imageUrl: data.imageUrl,
+        imageUrls: data.imageUrls || [],
+        links: data.links || [],
+        isCustom: data.isCustom,
+        isCardio: Boolean(data.isCardio || isCardioCategory(data.category)),
+        isPrivate: data.isPrivate ?? false,
+        ownerId: data.ownerId,
+        ...overrides,
+      };
+    };
+
     const unsubscribeMachines = onSnapshot(machinesQuery, (snapshot) => {
-      const fetchedMachines: MachineExercise[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        const isCardio = Boolean(
-          data.isCardio || 
-          isCardioCategory(data.category)
-        );
-        fetchedMachines.push({
-          id: docSnap.id,
-          name: data.name,
-          category: data.category,
-          description: data.description,
-          imageUrl: data.imageUrl,
-          imageUrls: data.imageUrls || [],
-          links: data.links || [],
-          isCustom: data.isCustom,
-          isCardio: isCardio,
-        });
-      });
-      
-      // Auto-seed initial machines only if the collection is empty AND we have
-      // never seeded before. Once seeded, never re-seed (so user deletions stick).
-      if (fetchedMachines.length === 0 && !hasSeeded) {
-        // Mark as seeded immediately to prevent duplicate seeding on rapid snapshots
+      sharedMachines = snapshot.docs.map(d => parseMachine(d, { isPrivate: false }));
+
+      // Auto-seed máquinas iniciales solo si la colección global está vacía y nunca se sembró
+      if (sharedMachines.length === 0 && !hasSeeded) {
         safeSetItem(SEED_FLAG_KEY, "true");
         const seedMachines = async () => {
           try {
@@ -289,6 +301,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                 description: m.description,
                 imageUrl: m.imageUrl,
                 isCustom: false,
+                isPrivate: false,
                 isCardio: Boolean(m.isCardio),
                 createdAt: Date.now(),
                 createdBy: user.uid
@@ -297,18 +310,25 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
             await batch.commit();
           } catch (e) {
             console.error("Error seeding machines:", e);
-            // Allow retry on next mount if seeding failed
             safeSetItem(SEED_FLAG_KEY, "false");
           }
         };
         seedMachines();
-      } else if (fetchedMachines.length > 0) {
+      } else if (sharedMachines.length > 0) {
         safeSetItem(SEED_FLAG_KEY, "true");
-        setMachines(fetchedMachines);
-        safeSetItem("cached_machines", JSON.stringify(fetchedMachines));
+        mergeMachines();
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, "machines");
+    });
+
+    // Listener de máquinas privadas del usuario actual
+    const unsubscribePrivateMachines = onSnapshot(privateMachinesQuery, (snapshot) => {
+      privateMachines = snapshot.docs.map(d => parseMachine(d, { isPrivate: true, ownerId: user.uid }));
+      mergeMachines();
+    }, (error) => {
+      // No crítico: si falla, seguimos mostrando las compartidas
+      console.warn("Error cargando máquinas privadas:", error);
     });
 
     // Listen to workoutLogs for the user
@@ -422,6 +442,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
 
     return () => {
       unsubscribeMachines();
+      unsubscribePrivateMachines();
       unsubscribeLogs();
     };
   }, [user]);
@@ -806,11 +827,12 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     e.preventDefault();
     if (!newMachineName.trim()) return;
 
-    // Use the first image in gallery as the main thumbnail, fallback to empty
     const mainImageUrl = newMachineGallery.length > 0 ? newMachineGallery[0] : "";
-
     const machineId = "machine_" + Date.now();
-    const newMachine = {
+    const isPrivate = newMachineIsPrivate;
+
+    const newMachine: MachineExercise = {
+      id: machineId,
       name: newMachineName.trim(),
       category: newMachineCategory,
       description: newMachineDesc.trim() || "Máquina / Ejercicio personalizado de gimnasio.",
@@ -818,18 +840,18 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
       imageUrls: newMachineGallery,
       links: newMachineLinks,
       isCustom: true,
-      createdAt: Date.now(),
-      createdBy: user.uid
+      isPrivate,
+      ownerId: user.uid,
     };
 
-    // Optimistically add to machines state & local storage
+    // Optimistically update local state
     setMachines(prev => {
-      const updated = [{ ...newMachine, id: machineId }, ...prev];
+      const updated = [newMachine, ...prev];
       safeSetItem("cached_machines", JSON.stringify(updated));
       return updated;
     });
 
-    // Reset modal form
+    // Reset form
     setNewMachineName("");
     setNewMachineDesc("");
     setNewMachineCategory(["Cardio"]);
@@ -837,17 +859,34 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     setNewMachineLinks([]);
     setNewLinkInput("");
     setNewImageInput("");
+    setNewMachineIsPrivate(false);
     setShowAddMachineModal(false);
 
-    // If session is active, automatically add it to session
     if (isSessionActive) {
-      addMachineToActiveSession({ ...newMachine, id: machineId });
+      addMachineToActiveSession(newMachine);
     }
 
+    // Guardar en la colección correcta según privacidad
+    const collectionPath = isPrivate
+      ? `users/${user.uid}/machines`
+      : "machines";
+
     try {
-      await setDoc(doc(db, "machines", machineId), cleanForFirestore(newMachine));
+      await setDoc(doc(db, collectionPath, machineId), cleanForFirestore({
+        name: newMachine.name,
+        category: newMachine.category,
+        description: newMachine.description,
+        imageUrl: newMachine.imageUrl,
+        imageUrls: newMachine.imageUrls,
+        links: newMachine.links,
+        isCustom: true,
+        isPrivate,
+        ownerId: user.uid,
+        createdAt: Date.now(),
+        createdBy: user.uid,
+      }));
     } catch (e) {
-      handleFirestoreError(e, OperationType.CREATE, `machines/${machineId}`);
+      handleFirestoreError(e, OperationType.CREATE, `${collectionPath}/${machineId}`);
     }
   };
 
@@ -904,10 +943,12 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     } : ex));
 
     const machineIdToEdit = editingMachine.id;
+    const isPrivateMachine = Boolean(editingMachine.isPrivate);
+    const collectionPath = isPrivateMachine ? `users/${user!.uid}/machines` : "machines";
     setEditingMachine(null);
 
     try {
-      await setDoc(doc(db, "machines", machineIdToEdit), cleanForFirestore({
+      await setDoc(doc(db, collectionPath, machineIdToEdit), cleanForFirestore({
         name: editMachineName.trim(),
         category: editMachineCategory,
         description: editMachineDesc.trim(),
@@ -916,27 +957,27 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
         links: editMachineLinks
       }), { merge: true });
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `machines/${machineIdToEdit}`);
+      handleFirestoreError(err, OperationType.UPDATE, `${collectionPath}/${machineIdToEdit}`);
     }
   };
 
   const handleDeleteMachine = (id: string) => {
     const target = machines.find(m => m.id === id);
     const machineName = target ? target.name : "esta máquina";
+    const isPrivateMachine = Boolean(target?.isPrivate);
+    const collectionPath = isPrivateMachine ? `users/${user!.uid}/machines` : "machines";
 
     setConfirmDialog({
       message: `¿Deseas eliminar "${machineName}" del catálogo de máquinas?`,
       action: async () => {
         try {
-          await deleteDoc(doc(db, "machines", id));
-          // Remove from active session exercises if present
+          await deleteDoc(doc(db, collectionPath, id));
           setActiveExercises(prev => prev.filter(e => e.machineId !== id));
-
           if (editingMachine && editingMachine.id === id) {
             setEditingMachine(null);
           }
         } catch (e) {
-          handleFirestoreError(e, OperationType.DELETE, `machines/${id}`);
+          handleFirestoreError(e, OperationType.DELETE, `${collectionPath}/${id}`);
         }
       }
     });
@@ -2857,9 +2898,23 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                   <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
                     <div>
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-sm font-bold text-white group-hover:text-red-400 transition-colors">
-                          {machine.name}
-                        </h3>
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <h3 className="text-sm font-bold text-white group-hover:text-red-400 transition-colors truncate">
+                            {machine.name}
+                          </h3>
+                          {/* Badge de visibilidad (solo en máquinas personalizadas) */}
+                          {machine.isCustom && (
+                            machine.isPrivate
+                              ? <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-600/30 text-amber-400 w-fit">
+                                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                  Solo yo
+                                </span>
+                              : <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/10 border border-red-700/30 text-red-400 w-fit">
+                                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                  Compartida
+                                </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={() => handleOpenEditMachine(machine)}
@@ -3990,6 +4045,43 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Visibilidad: Compartida / Solo yo */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-300">Visibilidad</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewMachineIsPrivate(false)}
+                    className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      !newMachineIsPrivate
+                        ? "bg-red-600/20 border-red-500 text-red-400"
+                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600"
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span>Compartida</span>
+                    <span className="text-zinc-500 font-normal text-[10px] text-center">Todos los usuarios la ven</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewMachineIsPrivate(true)}
+                    className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      newMachineIsPrivate
+                        ? "bg-amber-500/20 border-amber-500 text-amber-400"
+                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600"
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span>Solo yo</span>
+                    <span className="text-zinc-500 font-normal text-[10px] text-center">Solo visible para ti</span>
+                  </button>
                 </div>
               </div>
 

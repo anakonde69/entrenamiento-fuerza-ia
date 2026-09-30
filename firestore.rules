@@ -39,5 +39,10 @@ service cloud.firestore {
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
+
+    // Máquinas privadas de cada usuario (Solo yo)
+    match /users/{userId}/machines/{machineId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
   }
 }
