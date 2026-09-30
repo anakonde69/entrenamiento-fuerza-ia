@@ -510,7 +510,62 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
   const [sessionNotes, setSessionNotes] = useState<string>(() => savedSession?.sessionNotes || "");
   const [resumingLogId, setResumingLogId] = useState<string | null>(() => savedSession?.resumingLogId || null);
 
-  // Real-time active session auto-persistence to localStorage
+  // ─── Ref que siempre contiene el estado completo más reciente ────────────────
+  // Se usa en los handlers beforeunload/pagehide para evitar stale closures
+  // que capturarían ejercicios/notas antiguas al cerrar el navegador.
+  const latestSessionRef = useRef<Record<string, any> | null>(null);
+
+  useEffect(() => {
+    if (isSessionActive) {
+      latestSessionRef.current = {
+        isSessionActive,
+        isTimerStarted,
+        sessionStartTime,
+        sessionStartTimestamp,
+        lastResumeTimestamp,
+        accumulatedSeconds,
+        isPaused,
+        activeExercises,
+        sessionNotes,
+        resumingLogId,
+        userId: user?.uid,
+      };
+    } else {
+      latestSessionRef.current = null;
+    }
+  }, [
+    isSessionActive, isTimerStarted, sessionStartTime, sessionStartTimestamp,
+    lastResumeTimestamp, accumulatedSeconds, isPaused, activeExercises,
+    sessionNotes, resumingLogId, user,
+  ]);
+
+  // ─── Handler de salida del navegador — registrado UNA sola vez ───────────────
+  // Lee del ref (siempre fresco) para no sobreescribir con ejercicios obsoletos.
+  useEffect(() => {
+    const handleSaveOnExit = () => {
+      const s = latestSessionRef.current;
+      if (!s || !s.isSessionActive) return;
+      const liveNow = calculateLiveElapsed(
+        s.isSessionActive, s.isTimerStarted, s.isPaused,
+        s.accumulatedSeconds, s.lastResumeTimestamp,
+        s.sessionStartTimestamp, s.sessionStartTime
+      );
+      safeSetItem("active_free_session", JSON.stringify({
+        ...s,
+        elapsedSeconds: liveNow,
+        lastSavedTime: Date.now(),
+      }));
+    };
+    window.addEventListener("beforeunload", handleSaveOnExit);
+    window.addEventListener("pagehide", handleSaveOnExit);
+    return () => {
+      window.removeEventListener("beforeunload", handleSaveOnExit);
+      window.removeEventListener("pagehide", handleSaveOnExit);
+    };
+  }, []); // deps vacías: usa el ref, siempre fresco
+
+  // ─── Auto-persistencia en tiempo real (cada vez que cambia algún estado) ─────
+  // No incluye beforeunload/pagehide aquí para evitar re-registro 2×/seg.
   useEffect(() => {
     if (isSessionActive) {
       const stateToSave = {
@@ -526,12 +581,14 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
         activeExercises,
         sessionNotes,
         resumingLogId,
-        userId: user?.uid
+        userId: user?.uid,
       };
       safeSetItem("active_free_session", JSON.stringify(stateToSave));
-    } else {
-      safeRemoveItem("active_free_session");
     }
+    // NOTA: cuando isSessionActive pasa a false, los handlers explícitos en
+    // handleFinishSession y handleCancelSession ya llaman safeRemoveItem.
+    // NO borramos aquí para evitar borrado accidental si React hace un re-render
+    // con isSessionActive=false transitoriamente.
   }, [
     isSessionActive,
     isTimerStarted,
@@ -544,7 +601,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     activeExercises,
     sessionNotes,
     resumingLogId,
-    user
+    user,
   ]);
 
   // Modal to select machines to add to current session
@@ -662,51 +719,23 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
       interval = setInterval(syncTimer, 500);
     }
 
+    // Sincronizar timer al volver de segundo plano / cambio de pestaña / foco
     const handleSyncEvent = () => {
       syncTimer();
-    };
-
-    const handleSaveOnExit = () => {
-      if (isSessionActive) {
-        const liveNow = calculateLiveElapsed(
-          isSessionActive,
-          isTimerStarted,
-          isPaused,
-          accumulatedSeconds,
-          lastResumeTimestamp,
-          sessionStartTimestamp,
-          sessionStartTime
-        );
-        safeSetItem("active_free_session", JSON.stringify({
-          isSessionActive,
-          isTimerStarted,
-          sessionStartTime,
-          sessionStartTimestamp,
-          lastResumeTimestamp,
-          accumulatedSeconds,
-          elapsedSeconds: liveNow,
-          lastSavedTime: Date.now(),
-          isPaused,
-          activeExercises,
-          sessionNotes,
-          userId: user?.uid
-        }));
-      }
     };
 
     document.addEventListener("visibilitychange", handleSyncEvent);
     window.addEventListener("focus", handleSyncEvent);
     window.addEventListener("pageshow", handleSyncEvent);
-    window.addEventListener("beforeunload", handleSaveOnExit);
-    window.addEventListener("pagehide", handleSaveOnExit);
+    // "resume" es el equivalente en Android WebView
+    document.addEventListener("resume", handleSyncEvent);
 
     return () => {
       if (interval) clearInterval(interval);
       document.removeEventListener("visibilitychange", handleSyncEvent);
       window.removeEventListener("focus", handleSyncEvent);
       window.removeEventListener("pageshow", handleSyncEvent);
-      window.removeEventListener("beforeunload", handleSaveOnExit);
-      window.removeEventListener("pagehide", handleSaveOnExit);
+      document.removeEventListener("resume", handleSyncEvent);
     };
   }, [isSessionActive, isTimerStarted, isPaused, accumulatedSeconds, lastResumeTimestamp, sessionStartTimestamp, sessionStartTime]);
 
