@@ -2477,15 +2477,14 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                                       : "bg-black border-zinc-850 hover:border-red-500/40"
                                   }`}
                                 >
-                                  {/* Main row: Block, Duration, Intensity, Done */}
-                                  <div className="grid grid-cols-12 gap-2 items-center">
+                                  {/* Main row: # | Duración | Intensidad | Inclinación | ✓ */}
+                                  <div className="grid grid-cols-12 gap-1 items-center">
                                     {/* Block number */}
-                                    <div className="col-span-2 text-center font-mono font-bold text-xs text-red-400 flex items-center justify-center gap-1">
-                                      <Timer className="w-3.5 h-3.5 text-red-500" />
+                                    <div className="col-span-1 text-center font-mono font-bold text-xs text-red-400 flex items-center justify-center">
                                       <span>#{block.blockNumber || bIdx + 1}</span>
                                     </div>
-                                    {/* Duration Input (Minutes) */}
-                                    <div className="col-span-3 flex justify-center items-center gap-1">
+                                    {/* Duration */}
+                                    <div className="col-span-3 flex flex-col items-center gap-0.5">
                                       <input
                                         type="number"
                                         min="1"
@@ -2496,39 +2495,55 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                                           handleUpdateCardio(ex.machineId, bIdx, "durationMinutes", val === '' ? '' : Math.max(0, parseInt(val) || 0));
                                         }}
                                         placeholder="15"
-                                        className="w-[57px] bg-zinc-900 border border-zinc-750 rounded-lg px-2 py-2 text-center text-base sm:text-lg font-mono font-black text-white focus:outline-none focus:border-red-500"
+                                        className="w-full bg-zinc-900 border border-zinc-750 rounded-lg px-1 py-2 text-center text-base font-mono font-black text-white focus:outline-none focus:border-red-500"
                                       />
-                                      <span className="text-[10px] text-red-400 font-mono">min</span>
+                                      <span className="text-[9px] text-zinc-500 font-mono">min</span>
                                     </div>
-                                    {/* Intensity Input (text/level) */}
-                                    <div className="col-span-4 flex justify-center items-center gap-1">
+                                    {/* Intensity */}
+                                    <div className="col-span-3 flex flex-col items-center gap-0.5">
                                       <select
                                         value={block.intensity || ''}
                                         onChange={(e) => handleUpdateCardio(ex.machineId, bIdx, "intensity", e.target.value)}
-                                        className="w-[63px] bg-zinc-900 border border-zinc-750 rounded-lg px-1 py-2.5 text-sm sm:text-base font-black font-mono text-white focus:outline-none focus:border-red-500 appearance-none text-center"
+                                        className="w-full bg-zinc-900 border border-zinc-750 rounded-lg px-1 py-2.5 text-sm font-black font-mono text-white focus:outline-none focus:border-red-500 appearance-none text-center"
                                       >
-                                        <option value="" disabled>Nivel...</option>
+                                        <option value="" disabled>Niv…</option>
                                         {CARDIO_LEVELS.map(level => (
                                           <option key={level} value={level}>{level}</option>
                                         ))}
                                       </select>
+                                      <span className="text-[9px] text-zinc-500 font-mono">nivel</span>
                                     </div>
-                                    {/* Completion Checkbox & Delete */}
-                                    {/* Completion Checkbox & Delete */}
-                                    <div className="col-span-3 flex items-center justify-center gap-1">
+                                    {/* Inclinación — fila principal, siempre visible */}
+                                    <div className="col-span-3 flex flex-col items-center gap-0.5">
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        min="0"
+                                        max="30"
+                                        value={block.inclinePct ?? ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          handleUpdateCardio(ex.machineId, bIdx, "inclinePct", val === '' ? undefined : Math.min(30, Math.max(0, parseFloat(val) || 0)));
+                                        }}
+                                        placeholder="0"
+                                        className="w-full bg-zinc-900 border border-amber-600/40 rounded-lg px-1 py-2 text-center text-base font-mono font-black text-amber-300 focus:outline-none focus:border-amber-500"
+                                      />
+                                      <span className="text-[9px] text-amber-600 font-mono">incl.%</span>
+                                    </div>
+                                    {/* Completado + borrar */}
+                                    <div className="col-span-2 flex items-center justify-center gap-1">
                                       <button
                                         type="button"
                                         onClick={() => handleToggleCardioComplete(ex.machineId, bIdx)}
                                         className={`p-2 rounded-lg transition-all cursor-pointer ${
-                                          block.completed 
-                                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20" 
+                                          block.completed
+                                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
                                             : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
                                         }`}
                                         title={block.completed ? "Marcado como hecho" : "Marcar bloque completado"}
                                       >
                                         <Check className="w-4 h-4" />
                                       </button>
-
                                       {(ex.cardio || []).length > 1 && (
                                         <button
                                           type="button"
