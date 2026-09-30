@@ -22,6 +22,7 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
   const [weight, setWeight] = useState<number>(75);
   const [chest, setChest] = useState<number>(0);
   const [waist, setWaist] = useState<number>(0);
+  const [hip, setHip] = useState<number>(0);
   const [arms, setArms] = useState<number>(0);
   const [legs, setLegs] = useState<number>(0);
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -35,6 +36,7 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
       weight,
       chest: chest > 0 ? chest : undefined,
       waist: waist > 0 ? waist : undefined,
+      hip: hip > 0 ? hip : undefined,
       arms: arms > 0 ? arms : undefined,
       legs: legs > 0 ? legs : undefined,
     };
@@ -43,6 +45,7 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
     // Reset fields
     setChest(0);
     setWaist(0);
+    setHip(0);
     setArms(0);
     setLegs(0);
   };
@@ -74,11 +77,12 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
   const measurementsChartData = useMemo(
     () =>
       sortedMetrics
-        .filter((metric) => metric.chest || metric.waist || metric.arms || metric.legs)
+        .filter((metric) => metric.chest || metric.waist || metric.hip || metric.arms || metric.legs)
         .map((metric) => ({
           date: metric.date,
           pecho: metric.chest ?? null,
           cintura: metric.waist ?? null,
+          cadera: metric.hip ?? null,
           brazos: metric.arms ?? null,
           piernas: metric.legs ?? null,
         })),
@@ -202,6 +206,18 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
                   />
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-1">Cadera (cm)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    placeholder="No registrar"
+                    value={hip || ""}
+                    onChange={(e) => setHip(Number(e.target.value))}
+                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-zinc-800 bg-black text-white focus:outline-none focus:border-red-500 font-mono"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-1">Brazos (cm)</label>
                   <input
                     type="number"
@@ -240,7 +256,7 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
         {/* List + Charts Column */}
         <div className="md:col-span-7 space-y-4">
           <div className="bg-zinc-950 rounded-2xl border border-zinc-900 p-5 shadow-xl">
-            <h3 className="text-base font-black text-white mb-4 uppercase">
+            <h3 className="text-base font-black text-white mb-5 uppercase">
               Historial de Mediciones
             </h3>
 
@@ -251,41 +267,73 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
                 <p className="text-xs mt-1">Registra tu peso arriba para comenzar el seguimiento.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-b border-zinc-900 font-mono">
-                    <tr>
-                      <th className="py-2.5">Fecha</th>
-                      <th className="py-2.5">Peso</th>
-                      <th className="py-2.5">Cintura</th>
-                      <th className="py-2.5">Pecho</th>
-                      <th className="py-2.5">Brazos</th>
-                      <th className="py-2.5">Piernas</th>
-                      <th className="py-2.5 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-900">
-                    {[...metrics].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((m) => (
-                      <tr key={m.id} className="hover:bg-zinc-900/50">
-                        <td className="py-3 font-mono font-bold text-zinc-400">{m.date}</td>
-                        <td className="py-3 font-black text-red-400 font-mono">{m.weight} kg</td>
-                        <td className="py-3 text-zinc-300 font-medium font-mono">{m.waist ? `${m.waist} cm` : "—"}</td>
-                        <td className="py-3 text-zinc-300 font-medium font-mono">{m.chest ? `${m.chest} cm` : "—"}</td>
-                        <td className="py-3 text-zinc-300 font-medium font-mono">{m.arms ? `${m.arms} cm` : "—"}</td>
-                        <td className="py-3 text-zinc-300 font-medium font-mono">{m.legs ? `${m.legs} cm` : "—"}</td>
-                        <td className="py-3 text-right">
-                          <button
-                            onClick={() => onDeleteMetric(m.id)}
-                            className="text-zinc-500 hover:text-red-400 p-1 rounded transition-colors cursor-pointer"
-                            title="Eliminar registro"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-3.5">
+                {[...metrics]
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .map((m) => {
+                    const perimeters = [
+                      { label: "Pecho", value: m.chest },
+                      { label: "Cintura", value: m.waist },
+                      { label: "Cadera", value: m.hip },
+                      { label: "Brazos", value: m.arms },
+                      { label: "Piernas", value: m.legs },
+                    ].filter((p) => p.value !== undefined && p.value !== null && p.value > 0);
+
+                    return (
+                      <div
+                        key={m.id}
+                        className="rounded-xl border border-zinc-800 bg-black/40 p-4 hover:border-red-600/40 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-red-600/15 border border-red-600/20">
+                              <Calendar className="w-4 h-4 text-red-500" />
+                            </div>
+                            <div>
+                              <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">
+                                Fecha
+                              </span>
+                              <span className="block text-sm font-bold text-zinc-200 font-mono">{m.date}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">
+                                Peso
+                              </span>
+                              <span className="block text-lg font-black text-red-400 font-mono leading-tight">
+                                {m.weight} kg
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => onDeleteMetric(m.id)}
+                              className="text-zinc-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-600/10 transition-colors cursor-pointer"
+                              title="Eliminar registro"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {perimeters.length > 0 && (
+                          <div className="mt-3.5 pt-3.5 border-t border-zinc-800/80 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                            {perimeters.map((p) => (
+                              <div
+                                key={p.label}
+                                className="rounded-lg bg-zinc-900/60 px-3 py-2 border border-zinc-800/60"
+                              >
+                                <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
+                                  {p.label}
+                                </span>
+                                <span className="block text-sm font-bold text-zinc-200 font-mono">{p.value} cm</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -376,6 +424,7 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
                           <Legend verticalAlign="top" height={28} iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
                           <Line type="monotone" dataKey="pecho" name="Pecho" stroke="#ef4444" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
                           <Line type="monotone" dataKey="cintura" name="Cintura" stroke="#dc2626" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                          <Line type="monotone" dataKey="cadera" name="Cadera" stroke="#fb7185" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
                           <Line type="monotone" dataKey="brazos" name="Brazos" stroke="#f87171" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
                           <Line type="monotone" dataKey="piernas" name="Piernas" stroke="#b91c1c" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
                         </LineChart>

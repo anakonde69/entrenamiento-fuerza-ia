@@ -50,6 +50,7 @@ export interface BodyMetricLog {
   weight: number; // in kg
   chest?: number; // in cm
   waist?: number; // in cm
+  hip?: number; // in cm
   arms?: number; // in cm
   legs?: number; // in cm
 }

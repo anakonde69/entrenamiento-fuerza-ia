@@ -33,10 +33,10 @@ function LoginScreen() {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-zinc-300 font-sans relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.12),transparent_60%)] pointer-events-none" />
-      <div className="relative z-10 w-full max-w-sm">
+      <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-10">
           <h1 className="flex justify-center mb-4">
-            <img src={customLogo} alt="XOPATS" className="w-full max-w-xs object-contain drop-shadow-xl" />
+            <img src={customLogo} alt="XOPATS" className="w-72 sm:w-80 max-w-full object-contain drop-shadow-2xl" />
           </h1>
           <p className="text-zinc-400 text-sm">Inicia sesión para registrar tus entrenamientos por separado.</p>
         </div>

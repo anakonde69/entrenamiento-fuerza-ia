@@ -22,6 +22,7 @@ import {
 } from "../utils/muscleFocus";
 import RestTimer from "./RestTimer";
 import ConfirmModal from "./ConfirmModal";
+import { generateDayWorkoutPdf } from "../utils/workoutPdf";
 
 import { User } from "firebase/auth";
 import { db, handleFirestoreError, OperationType, cleanForFirestore } from "../lib/firebase";
@@ -559,6 +560,20 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
 
   // Completed Session Celebration Modal
   const [completedSummary, setCompletedSummary] = useState<FreeWorkoutLog | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState<boolean>(false);
+
+  const handleGenerateDayPdf = async (dateLabel: string, logs: FreeWorkoutLog[]) => {
+    if (generatingPdf) return;
+    setGeneratingPdf(true);
+    try {
+      await generateDayWorkoutPdf(dateLabel, logs);
+    } catch (err) {
+      console.error("Error generando PDF", err);
+      alert("Hubo un problema al generar el PDF. Inténtalo de nuevo.");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
 
   // Helper function to get YYYY-MM-DD string in local time
   const getTodayFormattedString = () => {
@@ -3064,6 +3079,19 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                         </span>
                       )}
                     </div>
+
+                    {hasLogsForSelectedDay && (
+                      <button
+                        onClick={() =>
+                          handleGenerateDayPdf(formatSpanishDate(selectedCalendarDate), selectedDayLogs)
+                        }
+                        disabled={generatingPdf}
+                        className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider text-xs py-2.5 px-4 rounded-xl shadow-md shadow-red-600/20 transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-4 h-4" />
+                        {generatingPdf ? "Generando PDF..." : "Generar PDF"}
+                      </button>
+                    )}
 
                     {hasLogsForSelectedDay ? (
                       <div className="space-y-4">
