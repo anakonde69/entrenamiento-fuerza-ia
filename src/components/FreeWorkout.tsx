@@ -2562,7 +2562,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                                       ))}
                                     </div>
 
-                                    {/* Extra optional details (Distance & Calories) */}
+                                    {/* Extra optional details (Distance & Incline) */}
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <div className="flex items-center gap-1">
                                         <span className="text-zinc-500 font-mono">Km:</span>
@@ -2580,15 +2580,16 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                                         />
                                       </div>
                                       <div className="flex items-center gap-1">
-                                        <span className="text-zinc-500 font-mono">Kcal:</span>
+                                        <span className="text-zinc-500 font-mono">Incl.%:</span>
                                         <input
                                           type="number"
-                                          step="5"
+                                          step="0.5"
                                           min="0"
-                                          value={block.caloriesKcal || ''}
+                                          max="30"
+                                          value={block.inclinePct ?? ''}
                                           onChange={(e) => {
                                             const val = e.target.value;
-                                            handleUpdateCardio(ex.machineId, bIdx, "caloriesKcal", val === '' ? '' : Math.max(0, parseInt(val) || 0));
+                                            handleUpdateCardio(ex.machineId, bIdx, "inclinePct", val === '' ? undefined : Math.min(30, Math.max(0, parseFloat(val) || 0)));
                                           }}
                                           placeholder="0"
                                           className="w-14 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5 text-center text-[10px] font-mono text-white"
@@ -3479,11 +3480,6 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                                                       {c.distanceKm !== undefined && Number(c.distanceKm) > 0 && (
                                                         <span className="bg-zinc-900 px-2 py-1 rounded text-zinc-300 border border-zinc-800">
                                                           {c.distanceKm} km
-                                                        </span>
-                                                      )}
-                                                      {c.caloriesKcal !== undefined && Number(c.caloriesKcal) > 0 && (
-                                                        <span className="bg-zinc-900 px-2 py-1 rounded text-zinc-300 border border-zinc-800">
-                                                          {c.caloriesKcal} kcal
                                                         </span>
                                                       )}
                                                       <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 p-1 rounded-full flex items-center justify-center">
@@ -5066,11 +5062,6 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                           {c.distanceKm !== undefined && Number(c.distanceKm) > 0 && (
                             <span className="bg-zinc-900 px-2.5 py-1 rounded-lg text-zinc-300 border border-zinc-800">
                               {c.distanceKm} km
-                            </span>
-                          )}
-                          {c.caloriesKcal !== undefined && Number(c.caloriesKcal) > 0 && (
-                            <span className="bg-zinc-900 px-2.5 py-1 rounded-lg text-zinc-300 border border-zinc-800">
-                              {c.caloriesKcal} kcal
                             </span>
                           )}
                           <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 p-1.5 rounded-full flex items-center justify-center">
