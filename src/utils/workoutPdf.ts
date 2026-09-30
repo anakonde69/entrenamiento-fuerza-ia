@@ -8,41 +8,70 @@ const DARK: [number, number, number] = [24, 24, 27];
 const GRAY: [number, number, number] = [113, 113, 122];
 
 /**
- * Carga una imagen (data URL, http o ruta local) y la convierte a un data URL PNG
- * usando un canvas, para poder incrustarla en el PDF. Devuelve null si falla.
+ * Detecta el formato de imagen a partir de un data URL.
+ * jsPDF necesita saber si es JPEG, PNG, etc.
+ */
+function detectImageFormat(dataUrl: string): string {
+  if (dataUrl.includes("image/jpeg") || dataUrl.includes("image/jpg")) return "JPEG";
+  if (dataUrl.includes("image/webp")) return "WEBP";
+  return "PNG";
+}
+
+/**
+ * Carga una imagen y devuelve su data URL y dimensiones para incrustarla en jsPDF.
+ * - Si la fuente ya ES un data URL (fotos del usuario guardadas en Firestore),
+ *   lo usa directamente sin pasar por canvas (evita tainting de canvas).
+ * - Si es una URL http(s), la descarga con fetch y la convierte a data URL.
  */
 async function loadImageAsDataUrl(
   src: string
-): Promise<{ dataUrl: string; width: number; height: number } | null> {
-  if (!src || typeof src !== "string") return null;
-  // Si ya es un data URL, intentamos usarlo directamente cargándolo en un canvas
-  return new Promise((resolve) => {
-    try {
+): Promise<{ dataUrl: string; width: number; height: number; format: string } | null> {
+  if (!src || typeof src !== "string" || src.trim() === "") return null;
+
+  // ── Caso 1: ya es un data URL ───────────────────────────────────────────────
+  if (src.startsWith("data:")) {
+    return new Promise((resolve) => {
       const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            resolve(null);
-            return;
-          }
-          ctx.drawImage(img, 0, 0);
-          const dataUrl = canvas.toDataURL("image/png");
-          resolve({ dataUrl, width: canvas.width, height: canvas.height });
-        } catch {
-          resolve(null);
-        }
-      };
+      img.onload = () =>
+        resolve({
+          dataUrl: src,
+          width: img.naturalWidth || 400,
+          height: img.naturalHeight || 300,
+          format: detectImageFormat(src),
+        });
       img.onerror = () => resolve(null);
       img.src = src;
-    } catch {
-      resolve(null);
-    }
-  });
+    });
+  }
+
+  // ── Caso 2: URL http(s) — fetch para evitar CORS con canvas ─────────────────
+  try {
+    const response = await fetch(src);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        if (!dataUrl) { resolve(null); return; }
+        const img = new Image();
+        img.onload = () =>
+          resolve({
+            dataUrl,
+            width: img.naturalWidth || 400,
+            height: img.naturalHeight || 300,
+            format: detectImageFormat(dataUrl),
+          });
+        img.onerror = () =>
+          resolve({ dataUrl, width: 400, height: 300, format: detectImageFormat(dataUrl) });
+        img.src = dataUrl;
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
 }
 
 function formatTimeSecs(totalSeconds: number): string {
@@ -168,14 +197,14 @@ export async function generateDayWorkoutPdf(
       if (imgData) {
         try {
           // Mantener proporción dentro de la caja
-          const ratio = imgData.width / imgData.height || 1;
+          const ratio = (imgData.width / imgData.height) || 1;
           let drawW = imgBoxW;
           let drawH = imgBoxW / ratio;
           if (drawH > imgBoxH) {
             drawH = imgBoxH;
             drawW = imgBoxH * ratio;
           }
-          pdf.addImage(imgData.dataUrl, "PNG", marginX, y, drawW, drawH);
+          pdf.addImage(imgData.dataUrl, imgData.format, marginX, y, drawW, drawH);
         } catch {
           /* si falla la imagen, continuar sin ella */
         }
