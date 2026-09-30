@@ -3859,6 +3859,47 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                 />
               </div>
 
+              {/* Visibilidad: Compartida / Solo yo — aquí arriba para que se vea de inmediato */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider">¿Quién puede verla?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewMachineIsPrivate(false)}
+                    className={`flex items-center gap-2 py-3 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      !newMachineIsPrivate
+                        ? "bg-red-600/20 border-red-500 text-red-400"
+                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600"
+                    }`}
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <div className="text-left">
+                      <div>Compartida</div>
+                      <div className="text-zinc-500 font-normal text-[10px]">Todos la ven</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewMachineIsPrivate(true)}
+                    className={`flex items-center gap-2 py-3 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      newMachineIsPrivate
+                        ? "bg-amber-500/20 border-amber-500 text-amber-400"
+                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600"
+                    }`}
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <div className="text-left">
+                      <div>Solo yo</div>
+                      <div className="text-zinc-500 font-normal text-[10px]">Privada, solo tú</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Category input */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-zinc-300">Grupos / Categorías</label>
@@ -4041,43 +4082,6 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                       ))}
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* Visibilidad: Compartida / Solo yo */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-300">Visibilidad</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewMachineIsPrivate(false)}
-                    className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                      !newMachineIsPrivate
-                        ? "bg-red-600/20 border-red-500 text-red-400"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600"
-                    }`}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>Compartida</span>
-                    <span className="text-zinc-500 font-normal text-[10px] text-center">Todos los usuarios la ven</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewMachineIsPrivate(true)}
-                    className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                      newMachineIsPrivate
-                        ? "bg-amber-500/20 border-amber-500 text-amber-400"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600"
-                    }`}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                    <span>Solo yo</span>
-                    <span className="text-zinc-500 font-normal text-[10px] text-center">Solo visible para ti</span>
-                  </button>
                 </div>
               </div>
 

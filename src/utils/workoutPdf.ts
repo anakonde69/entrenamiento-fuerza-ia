@@ -244,13 +244,13 @@ export async function generateDayWorkoutPdf(
       let head: string[][] = [];
 
       if (ex.isCardio && ex.cardio && ex.cardio.length > 0) {
-        head = [["Bloque", "Duración", "Intensidad", "Distancia", "Kcal"]];
+        head = [["Bloque", "Duración", "Intensidad", "Distancia", "Inclinación"]];
         bodyRows = ex.cardio.map((c, i) => [
           String(c.blockNumber || i + 1),
           `${c.durationMinutes ?? "-"} min`,
           c.intensity || "-",
           c.distanceKm != null ? `${c.distanceKm} km` : "-",
-          c.caloriesKcal != null ? `${c.caloriesKcal}` : "-",
+          c.inclinePct != null ? `${c.inclinePct}%` : "-",
         ]);
       } else if (ex.sets && ex.sets.length > 0) {
         head = [["Serie", "Peso (kg)", "Reps", "RIR", "Estado"]];
