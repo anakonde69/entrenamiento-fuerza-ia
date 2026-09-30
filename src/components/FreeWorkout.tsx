@@ -1141,7 +1141,8 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
       category: machine.category,
       isCardio: false,
       sets: initialSets,
-      cardio: []
+      cardio: [],
+      notes: lastPerf?.notes || ''
     };
 
     setActiveExercises(prev => [...prev, newActiveExercise]);
@@ -1179,7 +1180,8 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
       category: machine.category,
       isCardio: true,
       sets: [],
-      cardio: initialCardio
+      cardio: initialCardio,
+      notes: lastPerf?.notes || ''
     };
 
     setActiveExercises(prev => [...prev, newActiveExercise]);
@@ -1792,7 +1794,8 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
           category: pex.category || fullMachine?.category,
           isCardio: pex.isCardio,
           sets: initialSets,
-          cardio: initialCardio
+          cardio: initialCardio,
+          notes: lastPerf?.notes || ''
         });
       }
     });
@@ -2760,15 +2763,15 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                               Observaciones para esta máquina
                             </label>
                             {lastPerf?.notes && (
-                              <div className="bg-amber-950/20 border border-amber-500/10 text-amber-300 text-[11px] px-3 py-2 rounded-lg leading-snug">
-                                <span className="font-bold">Nota anterior:</span> {lastPerf.notes}
+                              <div className="text-[10px] text-amber-600 font-mono flex items-center gap-1">
+                                <span>📝 Recordado de {lastPerf.date}</span>
                               </div>
                             )}
                             <textarea
                               value={ex.notes || ''}
                               onChange={(e) => handleUpdateExerciseNotes(ex.machineId, e.target.value)}
                               placeholder="Ej: Asiento en el 4, molestia leve, etc."
-                              className="w-full bg-black border border-zinc-850 rounded-xl p-3 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors resize-none h-14"
+                              className={`w-full bg-black rounded-xl p-3 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-red-500 transition-colors resize-none h-14 ${lastPerf?.notes ? 'border border-amber-600/30' : 'border border-zinc-850'}`}
                             />
                           </div>
                         </div>
