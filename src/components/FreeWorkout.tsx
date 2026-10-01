@@ -1275,21 +1275,8 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
         const updatedSets = ex.sets.map((s, idx) => {
           if (idx === setIndex) {
             if (field === "rir") {
-              const getRirNum = (rirStr: string | undefined | null) => {
-                if (!rirStr) return 0;
-                const match = rirStr.match(/\d+/);
-                return match ? parseInt(match[0], 10) : 0;
-              };
-              
-              const oldRir = getRirNum(s.rir as string);
-              const newRir = getRirNum(value as string);
-              const rirDiff = newRir - oldRir;
-              
-              return { 
-                ...s, 
-                rir: value, 
-                reps: Math.max(0, (s.reps || 0) + rirDiff) 
-              };
+              // Solo actualizar RIR, sin tocar las repeticiones
+              return { ...s, rir: value };
             }
             return { ...s, [field]: Math.max(0, value) };
           }
