@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { Play, Pause, RotateCcw, Volume2, VolumeX, SkipForward, Plus, Minus, Info, Minimize2, Maximize2 } from "lucide-react";
-import { playRestCompletionBeep } from "../utils/sound";
+import { useState, useEffect, useRef } from "react";
+import { Play, Pause, RotateCcw, Volume2, VolumeX, SkipForward, Plus, Minus, Info, Minimize2, X, Smartphone } from "lucide-react";
+import { playRestCompletionBeep, SOUND_PRESETS, SoundType, SoundSettings } from "../utils/sound";
 import { safeSetItem, safeGetItem } from "../lib/storage";
 
 interface RestTimerProps {
@@ -17,11 +17,41 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
   const [totalSeconds, setTotalSeconds] = useState(initialSeconds);
   const [isActive, setIsActive] = useState(true);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    const saved = safeGetItem("timer_sound_enabled");
-    return saved !== "false"; // default to true
+  const [showSoundPanel, setShowSoundPanel] = useState(false);
+  const soundPanelRef = useRef<HTMLDivElement>(null);
+
+  const [soundSettings, setSoundSettings] = useState<SoundSettings>(() => {
+    const raw = safeGetItem("timer_sound_settings");
+    if (raw) {
+      try { return JSON.parse(raw) as SoundSettings; } catch (_) {}
+    }
+    // legacy fallback
+    const legacyEnabled = safeGetItem("timer_sound_enabled");
+    return {
+      enabled:   legacyEnabled !== "false",
+      volume:    0.7,
+      type:      "triple" as SoundType,
+      vibration: false,
+    };
   });
+
   const [isFinished, setIsFinished] = useState(false);
+
+  // Persist sound settings
+  useEffect(() => {
+    safeSetItem("timer_sound_settings", JSON.stringify(soundSettings));
+  }, [soundSettings]);
+
+  // Close panel when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (soundPanelRef.current && !soundPanelRef.current.contains(e.target as Node)) {
+        setShowSoundPanel(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     setSecondsLeft(initialSeconds);
@@ -40,13 +70,13 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
     } else if (secondsLeft === 0 && isActive) {
       setIsActive(false);
       setIsFinished(true);
-      if (soundEnabled) {
-        playRestCompletionBeep();
+      if (soundSettings.enabled) {
+        playRestCompletionBeep(soundSettings);
       }
     }
 
     return () => clearInterval(interval);
-  }, [isActive, secondsLeft, soundEnabled]);
+  }, [isActive, secondsLeft, soundSettings]);
 
   // Automatically return to the series list when the rest timer completes
   useEffect(() => {
@@ -74,12 +104,6 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
     if (onTimeAdjusted) {
       onTimeAdjusted(Math.max(10, totalSeconds + amount));
     }
-  };
-
-  const handleToggleSound = () => {
-    const newVal = !soundEnabled;
-    setSoundEnabled(newVal);
-    safeSetItem("timer_sound_enabled", newVal.toString());
   };
 
   const formatTime = (secs: number) => {
@@ -146,13 +170,96 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
             {type === "exercise" ? "Descanso entre ejercicios" : "Descanso entre series"}
           </span>
         </div>
-        <button
-          onClick={handleToggleSound}
-          className="p-2 rounded-xl bg-zinc-950 border border-zinc-850 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-          title={soundEnabled ? "Silenciar" : "Activar sonido"}
-        >
-          {soundEnabled ? <Volume2 className="w-4 h-4 text-red-400" /> : <VolumeX className="w-4 h-4 text-zinc-500" />}
-        </button>
+        {/* Botón sonido → abre panel de opciones */}
+        <div className="relative" ref={soundPanelRef}>
+          <button
+            onClick={() => setShowSoundPanel(v => !v)}
+            className={`p-2 rounded-xl border transition-colors cursor-pointer ${showSoundPanel ? "bg-red-600/10 border-red-500/30 text-red-400" : "bg-zinc-950 border-zinc-850 text-zinc-400 hover:text-zinc-200"}`}
+            title="Opciones de sonido"
+          >
+            {soundSettings.enabled ? <Volume2 className="w-4 h-4 text-red-400" /> : <VolumeX className="w-4 h-4 text-zinc-500" />}
+          </button>
+
+          {/* Panel de opciones de sonido */}
+          {showSoundPanel && (
+            <div className="absolute right-0 top-10 z-[200] w-72 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl p-4 space-y-4 animate-in fade-in zoom-in-95">
+              {/* Header panel */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-white uppercase tracking-wider">Opciones de sonido</span>
+                <button onClick={() => setShowSoundPanel(false)} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Activar/Silenciar */}
+              <div className="flex items-center justify-between bg-zinc-900 rounded-xl px-3 py-2.5">
+                <span className="text-xs text-zinc-300 font-bold">Sonido activado</span>
+                <button
+                  onClick={() => setSoundSettings(s => ({ ...s, enabled: !s.enabled }))}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${soundSettings.enabled ? "bg-red-600" : "bg-zinc-700"}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${soundSettings.enabled ? "left-5" : "left-0.5"}`} />
+                </button>
+              </div>
+
+              {/* Volumen */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-400 font-bold uppercase tracking-wide">Volumen</span>
+                  <span className="text-xs font-mono text-red-400 font-black">{Math.round(soundSettings.volume * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={soundSettings.volume}
+                  onChange={e => setSoundSettings(s => ({ ...s, volume: parseFloat(e.target.value) }))}
+                  className="w-full h-2 accent-red-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-zinc-600 font-mono">
+                  <span>0%</span><span>50%</span><span>100%</span>
+                </div>
+              </div>
+
+              {/* Tipo de pitido */}
+              <div className="space-y-2">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-wide block">Tipo de pitido</span>
+                <div className="space-y-1">
+                  {SOUND_PRESETS.map(preset => (
+                    <button
+                      key={preset.id}
+                      onClick={() => {
+                        setSoundSettings(s => ({ ...s, type: preset.id }));
+                        playRestCompletionBeep({ ...soundSettings, type: preset.id });
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left ${soundSettings.type === preset.id ? "bg-red-600/20 border border-red-500/40 text-red-300" : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700"}`}
+                    >
+                      <span className="text-base leading-none">{preset.emoji}</span>
+                      <span>{preset.label}</span>
+                      {soundSettings.type === preset.id && <span className="ml-auto text-red-400 text-[10px]">▶ activo</span>}
+                      {soundSettings.type !== preset.id && <span className="ml-auto text-zinc-600 text-[10px]">▶ probar</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Vibración */}
+              <div className="flex items-center justify-between bg-zinc-900 rounded-xl px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-3.5 h-3.5 text-zinc-400" />
+                  <span className="text-xs text-zinc-300 font-bold">Vibración (móvil)</span>
+                </div>
+                <button
+                  onClick={() => setSoundSettings(s => ({ ...s, vibration: !s.vibration }))}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${soundSettings.vibration ? "bg-red-600" : "bg-zinc-700"}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${soundSettings.vibration ? "left-5" : "left-0.5"}`} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Countdown Circle */}
