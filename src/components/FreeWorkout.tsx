@@ -253,17 +253,28 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     const privateMachinesQuery = query(collection(db, `users/${user.uid}/machines`));
 
     const SEED_FLAG_KEY = "machines_seeded_v1";
+    const PRIVATE_MACHINES_KEY = "xopats_private_machines";
     const hasSeeded = safeGetItem(SEED_FLAG_KEY) === "true";
 
     // Estado compartido entre los dos listeners para poder fusionarlos
     let sharedMachines: MachineExercise[] = [];
     let privateMachines: MachineExercise[] = [];
 
+    // Cargar máquinas privadas desde localStorage ANTES de que disparen los listeners de Firestore.
+    // Así, cuando el listener compartido llame a mergeMachines(), las privadas ya están listas
+    // y no se pierden aunque el listener privado de Firestore falle (reglas no desplegadas).
+    const _storedPrivate = safeGetItem(PRIVATE_MACHINES_KEY);
+    if (_storedPrivate) {
+      try { privateMachines = JSON.parse(_storedPrivate); } catch (_) { /* ignorar */ }
+    }
+
     const mergeMachines = () => {
       // Privadas primero para que aparezcan destacadas en el catálogo
       const merged = [...privateMachines, ...sharedMachines];
       setMachines(merged);
       safeSetItem("cached_machines", JSON.stringify(merged));
+      // Mantener copia separada de privadas para sobrevivir el refresco de página
+      safeSetItem(PRIVATE_MACHINES_KEY, JSON.stringify(privateMachines));
     };
 
     const parseMachine = (docSnap: any, overrides?: Partial<MachineExercise>): MachineExercise => {
@@ -316,6 +327,9 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
         seedMachines();
       } else if (sharedMachines.length > 0) {
         safeSetItem(SEED_FLAG_KEY, "true");
+        mergeMachines();
+      } else {
+        // sharedMachines vacías pero ya sembradas: fusionar igualmente para mostrar privadas
         mergeMachines();
       }
     }, (error) => {
@@ -866,6 +880,13 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
       addMachineToActiveSession(newMachine);
     }
 
+    // Persistir en localStorage si es privada (Firestore puede no tener reglas desplegadas)
+    if (isPrivate) {
+      const _sp = safeGetItem("xopats_private_machines");
+      const _existingPriv: MachineExercise[] = _sp ? (() => { try { return JSON.parse(_sp); } catch (_) { return []; } })() : [];
+      safeSetItem("xopats_private_machines", JSON.stringify([newMachine, ..._existingPriv.filter(m => m.id !== newMachine.id)]));
+    }
+
     // Guardar en la colección correcta según privacidad
     const collectionPath = isPrivate
       ? `users/${user.uid}/machines`
@@ -945,6 +966,23 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     const machineIdToEdit = editingMachine.id;
     const isPrivateMachine = Boolean(editingMachine.isPrivate);
     const collectionPath = isPrivateMachine ? `users/${user!.uid}/machines` : "machines";
+
+    // Actualizar en localStorage si es privada
+    if (isPrivateMachine) {
+      const _sp = safeGetItem("xopats_private_machines");
+      const _existingPriv: MachineExercise[] = _sp ? (() => { try { return JSON.parse(_sp); } catch (_) { return []; } })() : [];
+      const _updatedPriv = _existingPriv.map(m => m.id === machineIdToEdit ? {
+        ...m,
+        name: editMachineName.trim(),
+        category: editMachineCategory,
+        description: editMachineDesc.trim(),
+        imageUrl: mainImageUrl,
+        imageUrls: editMachineGallery,
+        links: editMachineLinks
+      } : m);
+      safeSetItem("xopats_private_machines", JSON.stringify(_updatedPriv));
+    }
+
     setEditingMachine(null);
 
     try {
@@ -970,6 +1008,16 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     setConfirmDialog({
       message: `¿Deseas eliminar "${machineName}" del catálogo de máquinas?`,
       action: async () => {
+        // Si es privada, eliminar de localStorage inmediatamente (Firestore puede no tener reglas)
+        if (isPrivateMachine) {
+          const _sp = safeGetItem("xopats_private_machines");
+          if (_sp) {
+            try {
+              const _existingPriv: MachineExercise[] = JSON.parse(_sp);
+              safeSetItem("xopats_private_machines", JSON.stringify(_existingPriv.filter(m => m.id !== id)));
+            } catch (_) { /* ignorar */ }
+          }
+        }
         try {
           await deleteDoc(doc(db, collectionPath, id));
           setActiveExercises(prev => prev.filter(e => e.machineId !== id));
