@@ -308,6 +308,23 @@ export default function App() {
     }
   };
 
+  const handleEditBodyMetric = async (updated: BodyMetricLog) => {
+    const newList = bodyMetrics.map((m) => m.id === updated.id ? updated : m);
+    setBodyMetrics(newList);
+    safeSetItem("body_metrics", JSON.stringify(newList));
+
+    if (user) {
+      try {
+        await setDoc(doc(db, "bodyMetrics", updated.id), cleanForFirestore({
+          ...updated,
+          userId: user.uid,
+        }), { merge: true });
+      } catch (e) {
+        handleFirestoreError(e, OperationType.UPDATE, `bodyMetrics/${updated.id}`);
+      }
+    }
+  };
+
   const handleGenerationComplete = async (
     userProfile: UserProfile, 
     generatedRoutine: Routine, 
@@ -576,7 +593,8 @@ export default function App() {
             <BodyMetricsTracker 
               metrics={bodyMetrics} 
               onAddMetric={handleAddBodyMetric} 
-              onDeleteMetric={handleDeleteBodyMetric} 
+              onDeleteMetric={handleDeleteBodyMetric}
+              onEditMetric={handleEditBodyMetric}
             />
           )}
 
