@@ -365,6 +365,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
             links: ex.links || [],
             category: ex.category || (ex.isCardio ? ["Cardio"] : ["Fuerza"]),
             isCardio: Boolean(ex.isCardio || isCardioCategory(ex.category)),
+            notes: ex.notes || "",
             sets: Array.isArray(ex.sets) ? ex.sets.map((s: any) => ({
               setNumber: s.setNumber || 1,
               reps: Number(s.reps) || 0,
