@@ -230,6 +230,7 @@ export default function App() {
           weight: data.weight,
           chest: data.chest,
           waist: data.waist,
+          hip: data.hip,
           arms: data.arms,
           legs: data.legs
         });
