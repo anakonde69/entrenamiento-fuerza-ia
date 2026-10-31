@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Pause, RotateCcw, Volume2, VolumeX, SkipForward, Plus, Minus, Info, Minimize2, X, Smartphone } from "lucide-react";
 import { playRestCompletionBeep, SOUND_PRESETS, SoundType, SoundSettings } from "../utils/sound";
 import { safeSetItem, safeGetItem } from "../lib/storage";
@@ -37,6 +37,46 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
 
   const [isFinished, setIsFinished] = useState(false);
 
+  // Refs para timer basado en reloj real (no susceptible a throttling en segundo plano)
+  const endTimeRef = useRef<number>(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notifTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const soundSettingsRef = useRef<SoundSettings>(soundSettings);
+
+  // Mantener soundSettingsRef sincronizado para usarlo dentro de callbacks estables
+  useEffect(() => {
+    soundSettingsRef.current = soundSettings;
+  }, [soundSettings]);
+
+  // Pedir permiso de notificación al montar
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Finalización del descanso: sonido, notificación y limpieza de persistencia
+  const fireCompletion = useCallback(() => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (notifTimeoutRef.current) { clearTimeout(notifTimeoutRef.current); notifTimeoutRef.current = null; }
+    localStorage.removeItem("xopats_timer_state");
+    setSecondsLeft(0);
+    setIsActive(false);
+    setIsFinished(true);
+    const s = soundSettingsRef.current;
+    if (s.enabled) playRestCompletionBeep(s);
+    if ("Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification("XOPATS — ¡Tiempo!", {
+          body: "¡Descanso completado! Continúa con tu siguiente serie.",
+          icon: "/icon-192.png",
+          tag: "xopats-timer",
+          renotify: true,
+        } as NotificationOptions);
+      } catch (_) {}
+    }
+  }, []);
+
   // Persist sound settings
   useEffect(() => {
     safeSetItem("timer_sound_settings", JSON.stringify(soundSettings));
@@ -60,28 +100,84 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
     setIsFinished(false);
   }, [initialSeconds]);
 
+  // Countdown basado en Date.now() — resistente a throttling y a estar en segundo plano
   useEffect(() => {
-    let interval: any = null;
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (notifTimeoutRef.current) { clearTimeout(notifTimeoutRef.current); notifTimeoutRef.current = null; }
 
-    if (isActive && secondsLeft > 0) {
-      interval = setInterval(() => {
-        setSecondsLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (secondsLeft === 0 && isActive) {
-      setIsActive(false);
-      setIsFinished(true);
-      if (soundSettings.enabled) {
-        playRestCompletionBeep(soundSettings);
-      }
+    if (!isActive || isFinished || secondsLeft <= 0) return;
+
+    // Calcular el momento de fin basándonos en el secondsLeft actual + reloj real
+    endTimeRef.current = Date.now() + secondsLeft * 1000;
+
+    // Guardar en localStorage para restaurar si la app se cierra o FreeWorkout se desmonta
+    localStorage.setItem("xopats_timer_state", JSON.stringify({
+      endTime: endTimeRef.current,
+      totalSeconds,
+      type,
+      exerciseName: exerciseName ?? "",
+    }));
+
+    // Programar notificación nativa (funciona aunque la pestaña esté en segundo plano)
+    if ("Notification" in window && Notification.permission === "granted") {
+      notifTimeoutRef.current = setTimeout(() => {
+        try {
+          new Notification("XOPATS — ¡Tiempo!", {
+            body: "¡Descanso completado! Continúa con tu siguiente serie.",
+            icon: "/icon-192.png",
+            tag: "xopats-timer",
+            renotify: true,
+          } as NotificationOptions);
+        } catch (_) {}
+      }, secondsLeft * 1000);
     }
 
-    return () => clearInterval(interval);
-  }, [isActive, secondsLeft, soundSettings]);
+    // Intervalo de 500ms: aunque el navegador aplique throttling, leemos el reloj real
+    intervalRef.current = setInterval(() => {
+      const remaining = Math.ceil((endTimeRef.current - Date.now()) / 1000);
+      if (remaining <= 0) {
+        fireCompletion();
+        return;
+      }
+      setSecondsLeft(remaining);
+    }, 500);
+
+    return () => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      if (notifTimeoutRef.current) { clearTimeout(notifTimeoutRef.current); notifTimeoutRef.current = null; }
+    };
+    // No depende de secondsLeft para evitar reinicios en cada tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, isFinished]);
+
+  // Resincronizar cuando la app vuelve a primer plano
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !isActive || isFinished) return;
+      const remaining = Math.ceil((endTimeRef.current - Date.now()) / 1000);
+      if (remaining <= 0) {
+        fireCompletion();
+      } else {
+        setSecondsLeft(remaining);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [isActive, isFinished, fireCompletion]);
+
+  // Cleanup al desmontar (sin borrar localStorage: queremos restaurar si FreeWorkout remonta)
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (notifTimeoutRef.current) clearTimeout(notifTimeoutRef.current);
+    };
+  }, []);
 
   // Automatically return to the series list when the rest timer completes
   useEffect(() => {
     if (isFinished) {
       const autoCloseTimeout = setTimeout(() => {
+        localStorage.removeItem("xopats_timer_state");
         onClose();
       }, 1500); // 1.5 second delay to let the beep sequence finish and show completion state
       return () => clearTimeout(autoCloseTimeout);
@@ -90,6 +186,14 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
 
   const toggleActive = () => setIsActive(!isActive);
 
+  // Cierra el timer limpiando intervalos, notificación pendiente y estado persistido
+  const handleClose = () => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (notifTimeoutRef.current) { clearTimeout(notifTimeoutRef.current); notifTimeoutRef.current = null; }
+    localStorage.removeItem("xopats_timer_state");
+    onClose();
+  };
+
   const resetTimer = () => {
     setSecondsLeft(totalSeconds);
     setIsActive(false);
@@ -97,13 +201,24 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
   };
 
   const adjustTime = (amount: number) => {
-    setTotalSeconds((prev) => {
-      return Math.max(10, prev + amount);
-    });
-    setSecondsLeft((prev) => Math.max(0, prev + amount));
-    if (onTimeAdjusted) {
-      onTimeAdjusted(Math.max(10, totalSeconds + amount));
+    const newTotal = Math.max(10, totalSeconds + amount);
+    setTotalSeconds(newTotal);
+
+    if (isActive && !isFinished && endTimeRef.current > 0) {
+      endTimeRef.current += amount * 1000;
+      const remaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      localStorage.setItem("xopats_timer_state", JSON.stringify({
+        endTime: endTimeRef.current,
+        totalSeconds: newTotal,
+        type,
+        exerciseName: exerciseName ?? "",
+      }));
+    } else {
+      setSecondsLeft((prev) => Math.max(0, prev + amount));
     }
+
+    if (onTimeAdjusted) onTimeAdjusted(newTotal);
   };
 
   const formatTime = (secs: number) => {
@@ -137,7 +252,7 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
                 {isActive ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
             </button>
             <button 
-              onClick={(e) => { e.stopPropagation(); onClose(); }} 
+              onClick={(e) => { e.stopPropagation(); handleClose(); }} 
               className="p-2.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 border border-red-500/20 text-red-400 transition-colors"
             >
                 <SkipForward className="w-4 h-4" />
@@ -394,6 +509,7 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
               onClick={() => {
                 setTotalSeconds(presetSecs);
                 setSecondsLeft(presetSecs);
+                endTimeRef.current = Date.now() + presetSecs * 1000;
                 setIsActive(true);
                 setIsFinished(false);
                 if (onTimeAdjusted) {
@@ -440,7 +556,7 @@ export default function RestTimer({ initialSeconds, type, onClose, onTimeAdjuste
 
           {/* Done/Close button */}
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="flex-1 flex items-center justify-center gap-2 py-3 px-3 bg-white text-black hover:bg-zinc-200 font-black text-sm rounded-xl transition-all shadow-md active:scale-98 cursor-pointer uppercase tracking-wider"
           >
             <SkipForward className="w-4 h-4 text-black" />

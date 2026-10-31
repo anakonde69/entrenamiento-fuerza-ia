@@ -708,6 +708,24 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
   const [restTimerSeconds, setRestTimerSeconds] = useState<number>(90);
   const [restTimerType, setRestTimerType] = useState<"set" | "exercise">("set");
   const [restTimerKey, setRestTimerKey] = useState<number>(0);
+
+  // Restaurar el timer de descanso si FreeWorkout se desmontó mientras estaba activo
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("xopats_timer_state");
+      if (!raw) return;
+      const state = JSON.parse(raw);
+      const remaining = Math.ceil((state.endTime - Date.now()) / 1000);
+      if (remaining > 1) {
+        setRestTimerSeconds(remaining);
+        setRestTimerType(state.type === "exercise" ? "exercise" : "set");
+        setRestTimerKey((k) => k + 1);
+        setShowRestTimer(true);
+      } else {
+        localStorage.removeItem("xopats_timer_state");
+      }
+    } catch (_) {}
+  }, []); // Solo en mount
   
   const [defaultSetRest, setDefaultSetRest] = useState<number>(() => {
     const saved = safeGetItem("default_set_rest");

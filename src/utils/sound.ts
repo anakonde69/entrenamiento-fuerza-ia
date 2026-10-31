@@ -45,7 +45,7 @@ function triggerVibration(type: SoundType) {
 }
 
 export function playRestCompletionBeep(settings?: Partial<SoundSettings>) {
-  const vol  = settings?.volume    ?? 0.85;   // default más alto que antes (era 0.6)
+  const vol  = settings?.volume    ?? 1.0;   // volumen máximo por defecto
   const type = settings?.type      ?? "triple";
   const vib  = settings?.vibration ?? false;
 
@@ -60,14 +60,19 @@ export function playRestCompletionBeep(settings?: Partial<SoundSettings>) {
 
     const audioCtx = new AudioContextClass();
 
-    // Compresor: permite subir gain sin distorsión
+    // Compresor actuando como limiter: permite subir gain sin distorsión
     const compressor = audioCtx.createDynamicsCompressor();
     compressor.threshold.setValueAtTime(-6, audioCtx.currentTime);
-    compressor.knee.setValueAtTime(6, audioCtx.currentTime);
-    compressor.ratio.setValueAtTime(3, audioCtx.currentTime);
-    compressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
-    compressor.release.setValueAtTime(0.1, audioCtx.currentTime);
-    compressor.connect(audioCtx.destination);
+    compressor.knee.setValueAtTime(4, audioCtx.currentTime);
+    compressor.ratio.setValueAtTime(2, audioCtx.currentTime);  // menos compresión → más volumen percibido
+    compressor.attack.setValueAtTime(0.001, audioCtx.currentTime);
+    compressor.release.setValueAtTime(0.05, audioCtx.currentTime);
+
+    // Ganancia maestra DESPUÉS del compresor para un boost final sin distorsión
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.setValueAtTime(2.0, audioCtx.currentTime);
+    compressor.connect(masterGain);
+    masterGain.connect(audioCtx.destination);
 
     const beep = (
       delay: number,
@@ -98,24 +103,24 @@ export function playRestCompletionBeep(settings?: Partial<SoundSettings>) {
 
     switch (type) {
       case "triple":
-        beep(0,    523.25, 0.18, v * 0.85);
-        beep(0.22, 659.25, 0.18, v * 0.92);
-        beep(0.44, 880.00, 0.45, v);
+        beep(0,    523.25, 0.25, v * 1.4);
+        beep(0.30, 659.25, 0.28, v * 1.6);
+        beep(0.62, 880.00, 0.70, v * 2.0);
         break;
       case "simple":
-        beep(0, 880, 0.6, v);
+        beep(0, 880, 0.8, v * 2.0);
         break;
       case "doble":
-        beep(0,    660, 0.25, v * 0.9);
-        beep(0.32, 880, 0.40, v);
+        beep(0,    660, 0.30, v * 1.6);
+        beep(0.36, 880, 0.55, v * 2.0);
         break;
       case "campana":
-        beep(0,    1046, 0.05, v,        "triangle");
-        beep(0.06, 1318, 0.70, v * 0.75, "triangle");
+        beep(0,    1046, 0.06, v * 2.0, "triangle");
+        beep(0.08, 1318, 0.90, v * 1.4, "triangle");
         break;
       case "grave":
-        beep(0,    110, 0.12, v,        "square");
-        beep(0.18, 220, 0.50, v * 0.9,  "sine");
+        beep(0,    110, 0.18, v * 2.0, "square");
+        beep(0.22, 220, 0.65, v * 1.6, "sine");
         break;
     }
   } catch (error) {
