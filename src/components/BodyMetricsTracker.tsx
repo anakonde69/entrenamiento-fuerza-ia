@@ -20,7 +20,7 @@ interface BodyMetricsTrackerProps {
 }
 
 export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetric, onEditMetric }: BodyMetricsTrackerProps) {
-  const [weight, setWeight] = useState<number>(75);
+  const [weight, setWeight] = useState<number>(0);
   const [chest, setChest] = useState<number>(0);
   const [waist, setWaist] = useState<number>(0);
   const [hip, setHip] = useState<number>(0);
@@ -47,6 +47,7 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
 
   const cancelEdit = () => {
     setEditingMetric(null);
+    setWeight(0);
     setChest(0);
     setWaist(0);
     setHip(0);
@@ -84,6 +85,7 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
       onAddMetric(newMetric);
     }
 
+    setWeight(0);
     setChest(0);
     setWaist(0);
     setHip(0);
@@ -95,6 +97,19 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
     () => [...metrics].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     [metrics]
   );
+  // Último valor registrado de cada campo (para mostrarlo en gris dentro de la casilla)
+  const lastValueOf = (key: "weight" | "chest" | "waist" | "hip" | "arms" | "legs"): number | undefined => {
+    for (let i = sortedMetrics.length - 1; i >= 0; i--) {
+      const v = sortedMetrics[i][key];
+      if (typeof v === "number" && v > 0) return v;
+    }
+    return undefined;
+  };
+  const lastPh = (key: "weight" | "chest" | "waist" | "hip" | "arms" | "legs", fallback: string) => {
+    const v = lastValueOf(key);
+    return v !== undefined ? `Último: ${v}` : fallback;
+  };
+
   const initialWeight = sortedMetrics.length > 0 ? sortedMetrics[0].weight : 0;
   const currentWeight = sortedMetrics.length > 0 ? sortedMetrics[sortedMetrics.length - 1].weight : 0;
   const weightChange = currentWeight && initialWeight ? (currentWeight - initialWeight).toFixed(1) : "0.0";
@@ -195,26 +210,27 @@ export default function BodyMetricsTracker({ metrics, onAddMetric, onDeleteMetri
 
             <div>
               <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 font-mono">Peso Corporal (kg)</label>
-              <input type="number" step="0.1" min="30" max="250" value={weight} onChange={(e) => setWeight(Number(e.target.value))}
-                className="w-full px-4 py-2 text-sm rounded-xl border border-zinc-800 bg-black text-white focus:outline-none focus:ring-1 focus:ring-red-500 font-mono" required />
+              <input type="number" step="0.1" min="30" max="250" value={weight || ""} onChange={(e) => setWeight(Number(e.target.value))}
+                placeholder={lastPh("weight", "Ej: 75")}
+                className="w-full px-4 py-2 text-sm rounded-xl border border-zinc-800 bg-black text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-500 font-mono" required />
             </div>
 
             <div className="border-t border-zinc-850 pt-3">
               <span className="text-xs font-bold text-red-500 block mb-2 font-mono">PERÍMETROS (OPCIONAL)</span>
               <div className="grid grid-cols-2 gap-3.5">
                 {[
-                  { label: "Pecho (cm)", value: chest, set: setChest, step: "0.5" },
-                  { label: "Cintura (cm)", value: waist, set: setWaist, step: "0.5" },
-                  { label: "Cadera (cm)", value: hip, set: setHip, step: "0.5" },
-                  { label: "Brazos (cm)", value: arms, set: setArms, step: "0.1" },
-                  { label: "Piernas (cm)", value: legs, set: setLegs, step: "0.5" },
-                ].map(({ label, value, set, step }) => (
+                  { label: "Pecho (cm)", value: chest, set: setChest, step: "0.5", key: "chest" as const },
+                  { label: "Cintura (cm)", value: waist, set: setWaist, step: "0.5", key: "waist" as const },
+                  { label: "Cadera (cm)", value: hip, set: setHip, step: "0.5", key: "hip" as const },
+                  { label: "Brazos (cm)", value: arms, set: setArms, step: "0.1", key: "arms" as const },
+                  { label: "Piernas (cm)", value: legs, set: setLegs, step: "0.5", key: "legs" as const },
+                ].map(({ label, value, set, step, key }) => (
                   <div key={label}>
                     <label className="block text-xs font-medium text-zinc-400 mb-1">{label}</label>
-                    <input type="number" step={step} min="0" placeholder="No registrar"
+                    <input type="number" step={step} min="0" placeholder={lastPh(key, "No registrar")}
                       value={value || ""}
                       onChange={(e) => set(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-zinc-800 bg-black text-white focus:outline-none focus:border-red-500 font-mono" />
+                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-zinc-800 bg-black text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 font-mono" />
                   </div>
                 ))}
               </div>
