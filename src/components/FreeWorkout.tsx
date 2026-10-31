@@ -273,8 +273,12 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
       const merged = [...privateMachines, ...sharedMachines];
       setMachines(merged);
       safeSetItem("cached_machines", JSON.stringify(merged));
-      // Mantener copia separada de privadas para sobrevivir el refresco de página
-      safeSetItem(PRIVATE_MACHINES_KEY, JSON.stringify(privateMachines));
+      // Solo sobreescribir el localStorage de privadas si tenemos datos de Firestore.
+      // Si privateMachines está vacío (Firestore sin datos o reglas no desplegadas),
+      // mantenemos lo que había en LS para no borrar máquinas no sincronizadas.
+      if (privateMachines.length > 0) {
+        safeSetItem(PRIVATE_MACHINES_KEY, JSON.stringify(privateMachines));
+      }
     };
 
     const parseMachine = (docSnap: any, overrides?: Partial<MachineExercise>): MachineExercise => {
@@ -338,11 +342,47 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
 
     // Listener de máquinas privadas del usuario actual
     const unsubscribePrivateMachines = onSnapshot(privateMachinesQuery, (snapshot) => {
-      privateMachines = snapshot.docs.map(d => parseMachine(d, { isPrivate: true, ownerId: user.uid }));
+      const fromFirestore = snapshot.docs.map(d => parseMachine(d, { isPrivate: true, ownerId: user.uid }));
+      if (fromFirestore.length > 0) {
+        // Firestore tiene datos → es la fuente de verdad; actualizar también LS
+        privateMachines = fromFirestore;
+        safeSetItem(PRIVATE_MACHINES_KEY, JSON.stringify(privateMachines));
+      } else if (privateMachines.length > 0) {
+        // Firestore devuelve 0 máquinas PERO localStorage tiene datos no sincronizados.
+        // Intentar re-sincronizar silenciosamente hacia Firestore.
+        // privateMachines ya tiene los datos cargados desde LS más arriba → no tocar.
+        (async () => {
+          try {
+            const batch = writeBatch(db);
+            privateMachines.forEach(m => {
+              const ref = doc(db, `users/${user.uid}/machines`, m.id);
+              batch.set(ref, {
+                name: m.name,
+                category: m.category,
+                description: m.description || '',
+                imageUrl: m.imageUrl || '',
+                imageUrls: m.imageUrls || [],
+                links: m.links || [],
+                isCustom: m.isCustom ?? true,
+                isCardio: m.isCardio ?? false,
+                isPrivate: true,
+                ownerId: user.uid,
+                resyncedAt: Date.now(),
+              });
+            });
+            await batch.commit();
+            console.log(`[XOPATS] ${privateMachines.length} máquinas privadas re-sincronizadas a Firestore`);
+          } catch (e) {
+            console.warn('[XOPATS] Re-sync de máquinas privadas falló (¿reglas Firestore no desplegadas?):', e);
+          }
+        })();
+      }
+      // else: Firestore y LS ambos vacíos → no hay nada que hacer
       mergeMachines();
     }, (error) => {
-      // No crítico: si falla, seguimos mostrando las compartidas
+      // No crítico: si falla, seguimos mostrando las de localStorage
       console.warn("Error cargando máquinas privadas:", error);
+      mergeMachines();
     });
 
     // Listen to workoutLogs for the user
