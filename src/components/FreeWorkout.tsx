@@ -27,6 +27,15 @@ import { generateDayWorkoutPdf } from "../utils/workoutPdf";
 import { User } from "firebase/auth";
 import { db, handleFirestoreError, OperationType, cleanForFirestore } from "../lib/firebase";
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query, where, getDocs, writeBatch } from "firebase/firestore";
+
+// Conserva "6+6" como texto; números simples como número
+const normalizeRepsForStore = (reps: any): number | string => {
+  if (typeof reps === "number") return isFinite(reps) ? Math.max(0, reps) : 0;
+  const clean = String(reps ?? "").replace(/[^0-9+]/g, "");
+  if (clean === "") return 0;
+  if (/^\d+$/.test(clean)) return parseInt(clean, 10);
+  return clean;
+};
 import { safeSetItem, safeGetItem, safeRemoveItem } from "../lib/storage";
 
 interface FreeWorkoutProps {
@@ -408,7 +417,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
             notes: ex.notes || "",
             sets: Array.isArray(ex.sets) ? ex.sets.map((s: any) => ({
               setNumber: s.setNumber || 1,
-              reps: Number(s.reps) || 0,
+              reps: normalizeRepsForStore(s.reps),
               weight: Number(s.weight) || 0,
               completed: Boolean(s.completed),
               rir: s.rir
@@ -434,7 +443,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
             isCardio: false,
             sets: Array.isArray(data.sets) ? data.sets.map((s: any) => ({
               setNumber: s.setNumber || 1,
-              reps: Number(s.reps) || 0,
+              reps: normalizeRepsForStore(s.reps),
               weight: Number(s.weight) || 0,
               completed: Boolean(s.completed),
               rir: s.rir
@@ -1572,7 +1581,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
         notes: ex.notes || "",
         sets: (ex.sets || []).map(s => ({
           setNumber: s.setNumber,
-          reps: Number(s.reps) || 0,
+          reps: normalizeRepsForStore(s.reps),
           weight: Number(s.weight) || 0,
           ...(s.rir ? { rir: String(s.rir) } : {}),
           completed: Boolean(s.completed)
@@ -1698,7 +1707,7 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
         isCardio: isCardio,
         sets: (ex.sets || []).map(s => ({
           setNumber: s.setNumber,
-          reps: Number(s.reps) || 0,
+          reps: normalizeRepsForStore(s.reps),
           weight: Number(s.weight) || 0,
           rir: s.rir,
           completed: !isToday ? false : Boolean(s.completed) // Reset completion if repeating
