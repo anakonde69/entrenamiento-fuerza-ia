@@ -18,6 +18,15 @@ import { safeSetItem, safeGetItem } from "./lib/storage";
 import { User } from "firebase/auth";
 import { doc, setDoc, deleteDoc, onSnapshot, collection, query, where } from "firebase/firestore";
 
+// Detecta dispositivos iOS (Safari no soporta beforeinstallprompt).
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const iOSDevice = /iPad|iPhone|iPod/.test(ua);
+  const iPadOS = navigator.platform === "MacIntel" && (navigator as any).maxTouchPoints > 1;
+  return iOSDevice || iPadOS;
+}
+
 function LoginScreen() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -117,6 +126,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("freeworkout");
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; action: () => void } | null>(null);
 
+  // Configuración / instalación PWA
+  const [showSettings, setShowSettings] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
   // Handle Firebase Auth
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -125,6 +139,41 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Detección e instalación de la PWA
+  useEffect(() => {
+    const checkInstalled = () =>
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true;
+    setIsInstalled(checkInstalled());
+
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    const onInstalled = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    try {
+      await installPrompt.userChoice;
+    } catch {
+      // ignorar
+    }
+    setInstallPrompt(null);
+  };
 
   // Listen to Firestore for User Profile, Routine, Nutrition, Logs, and Body Metrics
   useEffect(() => {
@@ -465,6 +514,77 @@ export default function App() {
         onCancel={() => setConfirmDialog(null)}
       />
 
+      {/* Modal de Configuración */}
+      {showSettings && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowSettings(false)}
+        >
+          <div
+            className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-red-600/10 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-900">
+              <h2 className="text-base font-black text-white uppercase flex items-center gap-2">
+                <Settings className="w-4.5 h-4.5 text-red-500" />
+                Configuración
+              </h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-zinc-500 hover:text-white transition-colors cursor-pointer text-xl leading-none px-1"
+                title="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <div className="flex flex-col items-center text-center">
+                <img
+                  src="/icon-192.png"
+                  alt="XOPATS"
+                  className="w-20 h-20 rounded-2xl border border-zinc-800 shadow-lg mb-3"
+                />
+                <h3 className="text-sm font-black text-white uppercase tracking-wide">Instalar app</h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Instala XOPATS en tu dispositivo para abrirla como una app, a pantalla completa y con su icono.
+                </p>
+              </div>
+
+              {isInstalled ? (
+                <div className="p-3.5 bg-emerald-900/30 border border-emerald-600/40 rounded-xl text-sm text-emerald-300 text-center font-semibold">
+                  ✅ La app ya está instalada
+                </div>
+              ) : installPrompt ? (
+                <button
+                  onClick={handleInstallClick}
+                  className="w-full py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-black uppercase tracking-wider shadow-md shadow-red-600/20 cursor-pointer transition-colors"
+                >
+                  Instalar XOPATS
+                </button>
+              ) : isIOS() ? (
+                <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-300 space-y-1.5">
+                  <p className="font-bold text-red-500 uppercase text-xs tracking-widest font-mono">En iPhone / iPad</p>
+                  <p>
+                    Pulsa <span className="font-bold text-white">Compartir ⬆️</span> en Safari y luego{" "}
+                    <span className="font-bold text-white">«Añadir a pantalla de inicio»</span>.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-300 space-y-1.5">
+                  <p className="font-bold text-red-500 uppercase text-xs tracking-widest font-mono">Desde tu navegador</p>
+                  <p>
+                    Abre el menú del navegador (⋮) y elige{" "}
+                    <span className="font-bold text-white">«Instalar aplicación»</span> o{" "}
+                    <span className="font-bold text-white">«Añadir a pantalla de inicio»</span>.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         {/* Premium Header Nav - Panatta Red & Black */}
         <header className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-red-950/60 h-16 flex items-center shrink-0">
@@ -515,6 +635,13 @@ export default function App() {
                      profile.objective === "resistencia" ? "Resistencia" : "Pérdida Grasa"}
                   </p>
                 </div>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="p-2 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-all cursor-pointer border border-transparent hover:border-red-900/50"
+                  title="Configuración"
+                >
+                  <Settings className="w-4.5 h-4.5" />
+                </button>
                 <button
                   onClick={handleResetApp}
                   className="p-2 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-all cursor-pointer border border-transparent hover:border-red-900/50"
