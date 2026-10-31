@@ -297,7 +297,7 @@ export async function generateDayWorkoutPdf(
         pdf.setFont("helvetica", "italic");
         pdf.setFontSize(8.5);
         pdf.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-        const noteLines = pdf.splitTextToSize(`Notas: ${ex.notes}`, pageWidth - marginX * 2);
+        const noteLines = pdf.splitTextToSize(`Observaciones: ${ex.notes}`, pageWidth - marginX * 2);
         pdf.text(noteLines, marginX, y);
         y += noteLines.length * 4 + 3;
       }
