@@ -1327,6 +1327,12 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
     }));
   };
 
+  // Helper: parsea reps que pueden ser "6+6" → 12, o un número normal
+  const parseRepsValue = (reps: number | string): number => {
+    if (typeof reps === 'number') return reps;
+    return String(reps).split('+').reduce((sum, part) => sum + (parseInt(part.trim(), 10) || 0), 0);
+  };
+
   // Set management for strength active exercises
   const handleUpdateSet = (machineId: string, setIndex: number, field: "reps" | "weight" | "rir", value: any) => {
     setActiveExercises(prev => prev.map(ex => {
@@ -1336,6 +1342,16 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
             if (field === "rir") {
               // Solo actualizar RIR, sin tocar las repeticiones
               return { ...s, rir: value };
+            }
+            if (field === "reps") {
+              // Permite números normales o formato "6+6" (solo dígitos y +)
+              const cleanVal = typeof value === 'string'
+                ? value.replace(/[^0-9+]/g, '')
+                : String(Math.max(0, value));
+              // Si es un número simple, se guarda como número (compatibilidad)
+              if (cleanVal === '') return { ...s, reps: 0 };
+              if (/^\d+$/.test(cleanVal)) return { ...s, reps: parseInt(cleanVal, 10) };
+              return { ...s, reps: cleanVal };
             }
             return { ...s, [field]: Math.max(0, value) };
           }
@@ -2772,11 +2788,11 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                                   {/* Reps Input */}
                                   <div className="col-span-3 flex justify-center items-center gap-1">
                                     <input
-                                      type="number"
-                                      min="0"
-                                      step="1"
+                                      type="text"
+                                      inputMode="text"
+                                      title="Puedes escribir 6+6 para ejercicios a un lado (izq + der)"
                                       value={set.reps || ''}
-                                      onChange={(e) => handleUpdateSet(ex.machineId, sIdx, "reps", parseInt(e.target.value) || 0)}
+                                      onChange={(e) => handleUpdateSet(ex.machineId, sIdx, "reps", e.target.value)}
                                       placeholder="0"
                                       className="w-full max-w-[70px] sm:max-w-[90px] bg-zinc-900 border border-zinc-750 rounded-lg px-1 sm:px-2 py-1.5 text-center text-xs font-mono font-bold text-white focus:outline-none focus:border-red-500"
                                     />
@@ -3394,8 +3410,8 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
                                   const totalSets = (ex.sets || []).length;
                                   const completedSetsCount = (ex.sets || []).filter(s => s.completed).length;
                                   const maxWeightLifted = (ex.sets || []).reduce((max, s) => Math.max(max, Number(s.weight) || 0), 0);
-                                  const totalVolumeLifted = (ex.sets || []).reduce((acc, s) => acc + ((Number(s.weight) || 0) * (Number(s.reps) || 0)), 0);
-                                  const totalReps = (ex.sets || []).reduce((acc, s) => acc + (Number(s.reps) || 0), 0);
+                                  const totalVolumeLifted = (ex.sets || []).reduce((acc, s) => acc + ((Number(s.weight) || 0) * (parseRepsValue(s.reps) || 0)), 0);
+                                  const totalReps = (ex.sets || []).reduce((acc, s) => acc + (parseRepsValue(s.reps) || 0), 0);
                                   const totalCardioMinutes = (ex.cardio || []).reduce((sum, c) => sum + (Number(c.durationMinutes) || 0), 0);
 
                                   return (
@@ -4992,8 +5008,8 @@ export default function FreeWorkout({ user, onLogSaved, activeTopTab = "freework
         const totalSets = (ex.sets || []).length;
         const completedSetsCount = (ex.sets || []).filter((s: any) => s.completed).length;
         const maxWeightLifted = (ex.sets || []).reduce((max: number, s: any) => Math.max(max, Number(s.weight) || 0), 0);
-        const totalVolumeLifted = (ex.sets || []).reduce((acc: number, s: any) => acc + ((Number(s.weight) || 0) * (Number(s.reps) || 0)), 0);
-        const totalReps = (ex.sets || []).reduce((acc: number, s: any) => acc + (Number(s.reps) || 0), 0);
+        const totalVolumeLifted = (ex.sets || []).reduce((acc: number, s: any) => acc + ((Number(s.weight) || 0) * (parseRepsValue(s.reps) || 0)), 0);
+        const totalReps = (ex.sets || []).reduce((acc: number, s: any) => acc + (parseRepsValue(s.reps) || 0), 0);
         const totalCardioMinutes = (ex.cardio || []).reduce((sum: number, c: any) => sum + (Number(c.durationMinutes) || 0), 0);
 
         return (

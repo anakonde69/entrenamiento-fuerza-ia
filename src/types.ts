@@ -102,7 +102,7 @@ export interface MachineExercise {
 
 export interface FreeExerciseSet {
   setNumber: number;
-  reps: number;
+  reps: number | string; // permite "6+6" para indicar dos lados (ej. izq + der)
   weight: number; // in kg
   completed: boolean;
   rir?: string;
