@@ -5,8 +5,6 @@ import {
   Sparkles, Settings, LogOut, CheckCircle2, Flame, LogIn, Calendar, Edit2 
 } from "lucide-react";
 import { UserProfile, Routine, NutritionAdvice, WorkoutLog, BodyMetricLog, FreeWorkoutLog } from "./types";
-import AIPromptScreen from "./components/AIPromptScreen";
-import WorkoutDashboard from "./components/WorkoutDashboard";
 import ProgressStats from "./components/ProgressStats";
 import BodyMetricsTracker from "./components/BodyMetricsTracker";
 import NutritionAdvisor from "./components/NutritionAdvisor";
@@ -424,7 +422,7 @@ export default function App() {
       }
     }
 
-    setActiveTab("workout");
+    setActiveTab("freeworkout");
   };
 
   const handleLogout = async () => {
@@ -468,7 +466,7 @@ export default function App() {
         setNutrition(null);
         setWorkoutLogs([]);
         setBodyMetrics([]);
-        setActiveTab("workout");
+        setActiveTab("freeworkout");
         if (user) {
           try {
             await deleteDoc(doc(db, "userProfiles", user.uid));
@@ -495,14 +493,6 @@ export default function App() {
     );
   }
 
-  // If no routine is configured, guide the user through the AI creation flow
-  if (!profile || !routine || !nutrition) {
-    return (
-      <div className="min-h-screen bg-black text-zinc-100 transition-colors duration-300">
-        <AIPromptScreen onGenerationComplete={handleGenerationComplete} />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-black text-zinc-100 transition-colors duration-300 pb-20 flex flex-col justify-between selection:bg-red-600 selection:text-white">
@@ -600,7 +590,6 @@ export default function App() {
               <nav className="hidden md:flex items-center gap-1 bg-zinc-950 border border-zinc-900 p-1 rounded-xl">
                 {[
                   { id: "freeworkout", label: "Entreno Libre", icon: Flame },
-                  { id: "workout", label: "Rutina", icon: Dumbbell },
                   { id: "calendar", label: "Calendario", icon: Calendar },
                   { id: "plan", label: "Planificar", icon: Edit2 },
                   { id: "stats", label: "Progreso", icon: Activity },
@@ -627,27 +616,12 @@ export default function App() {
 
               {/* Configuration / Logout */}
               <div className="flex items-center gap-4">
-                <div className="hidden sm:block text-right">
-                  <p className="text-[10px] text-zinc-500 font-mono tracking-wider uppercase">Objetivo</p>
-                  <p className="text-xs font-bold text-zinc-300">
-                    {profile.objective === "fuerza" ? "Fuerza Máxima" :
-                     profile.objective === "hipertrofia" ? "Hipertrofia" :
-                     profile.objective === "resistencia" ? "Resistencia" : "Pérdida Grasa"}
-                  </p>
-                </div>
                 <button
                   onClick={() => setShowSettings(true)}
                   className="p-2 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-all cursor-pointer border border-transparent hover:border-red-900/50"
                   title="Configuración"
                 >
                   <Settings className="w-4.5 h-4.5" />
-                </button>
-                <button
-                  onClick={handleResetApp}
-                  className="p-2 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-red-950/30 transition-all cursor-pointer border border-transparent hover:border-red-900/50"
-                  title="Restablecer Aplicación / Nueva Rutina"
-                >
-                  <RefreshCw className="w-4.5 h-4.5" />
                 </button>
                 <button
                   onClick={handleLogout}
@@ -666,7 +640,6 @@ export default function App() {
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-md border-t border-red-950/60 py-1.5 px-1.5 flex justify-between items-center z-50 shadow-2xl">
           {[
             { id: "freeworkout", label: "Libre", icon: Flame },
-            { id: "workout", label: "Rutina", icon: Dumbbell },
             { id: "calendar", label: "Calendario", icon: Calendar },
             { id: "plan", label: "Plan", icon: Edit2 },
             { id: "stats", label: "Progreso", icon: Activity },
@@ -701,14 +674,6 @@ export default function App() {
             />
           )}
 
-          {activeTab === "workout" && (
-            <WorkoutDashboard 
-              routine={routine} 
-              onLogSaved={handleAddWorkoutLog} 
-              onResetRoutine={handleResetApp}
-              workoutLogs={workoutLogs}
-            />
-          )}
           
           {activeTab === "stats" && (
             <ProgressStats 
