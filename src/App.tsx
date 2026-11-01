@@ -1,4 +1,5 @@
 import customLogo from "./assets/images/custom-logo.jpg";
+import bgXopats from "./assets/images/bg-xopats.jpg";
 import { useState, useEffect } from "react";
 import { 
   Dumbbell, Activity, Scale, Apple, RefreshCw, 
@@ -122,6 +123,11 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<string>("freeworkout");
+  const [showSplash, setShowSplash] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), 2500);
+    return () => clearTimeout(t);
+  }, []);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; action: () => void } | null>(null);
 
   // Configuración / instalación PWA
@@ -478,11 +484,21 @@ export default function App() {
     });
   };
 
-  if (authLoading) {
+  if (authLoading || showSplash) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-zinc-300 font-sans">
-        <Dumbbell className="w-10 h-10 text-red-600 animate-pulse mb-4" />
-        <p className="text-sm font-mono tracking-widest text-zinc-500">CARGANDO...</p>
+      <div
+        className="min-h-screen bg-black flex flex-col items-center justify-center"
+        style={{
+          backgroundImage: `url(${bgXopats})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <div className="absolute inset-0 bg-black/70" />
+        <div className="relative z-10 flex flex-col items-center gap-6">
+          <img src={customLogo} alt="XOPATS" className="w-64 sm:w-80 max-w-full object-contain drop-shadow-2xl" />
+          <p className="text-sm font-mono tracking-widest text-zinc-400 animate-pulse">CARGANDO...</p>
+        </div>
       </div>
     );
   }
@@ -495,7 +511,25 @@ export default function App() {
 
 
   return (
-    <div className="min-h-screen bg-black text-zinc-100 transition-colors duration-300 pb-20 flex flex-col justify-between selection:bg-red-600 selection:text-white">
+    <div
+      className="min-h-screen bg-black text-zinc-100 transition-colors duration-300 pb-20 flex flex-col justify-between selection:bg-red-600 selection:text-white"
+      style={{ position: "relative" }}
+    >
+      {/* Fondo imagen XOPATS — opacidad muy baja para no tapar los elementos */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 0,
+          backgroundImage: `url(${bgXopats})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          opacity: 0.06,
+          pointerEvents: "none",
+        }}
+      />
+      <div style={{ position: "relative", zIndex: 1, display: "contents" }}>
       
       <ConfirmModal
         isOpen={confirmDialog !== null}
@@ -719,6 +753,7 @@ export default function App() {
         </div>
       </footer>
 
+      </div>
     </div>
   );
 }
